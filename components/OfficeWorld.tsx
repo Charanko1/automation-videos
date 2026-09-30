@@ -1,68 +1,36 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import {
-  ContactShadows,
-  Edges,
-  Html,
-  OrbitControls,
-  PerspectiveCamera,
-  RoundedBox,
-} from "@react-three/drei";
+import { ContactShadows, Edges, Html, OrbitControls, PerspectiveCamera, RoundedBox } from "@react-three/drei";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
-import {
-  OFFICE_CONFIG,
-  BreakSpotId,
-  getSeatTransform,
-  WORKER_DESK_IDS,
-} from "../lib/officeConfig";
+import { OFFICE_CONFIG, BreakSpotId, getSeatTransform, WORKER_DESK_IDS } from "../lib/officeConfig";
 
-type Person = {
-  id: string;
-  name: string;
-  role: string;
-  provider: string;
-  dept: string;
-  color: string;
-  state: string;
-};
-
-type Mode =
-  | "WORKING"
-  | "ANTICIPATE"
-  | "STAND_UP"
-  | "WALK"
-  | "ARRIVE"
-  | "ACTIVITY"
-  | "WALK_BACK"
-  | "SIT_DOWN";
-
+type Person = { id: string; name: string; role: string; provider: string; dept: string; color: string; state: string };
+type Mode = "WORKING" | "ANTICIPATE" | "STAND_UP" | "WALK" | "ARRIVE" | "ACTIVITY" | "WALK_BACK" | "SIT_DOWN";
 type MicroAction = "NONE" | "STRETCH" | "SCRATCH" | "DRINK" | "LEAN" | "SHIFT" | "LOOK";
-type BreakActivity = "SOFA" | "SNACK" | "WINDOW";
+type BreakActivity = "SIT" | "SNACK" | "STAND";
 
-const DESKS = OFFICE_CONFIG.desks.positions;
+const C = OFFICE_CONFIG;
+const DESKS = C.desks.positions;
+const F = C.navigation.loungeFrontZ;
 
 const BREAK_SPOTS: Record<BreakSpotId, {
-  pos: [number, number, number];
-  facing: number;
-  activity: BreakActivity;
+  pos: [number, number, number]; via: Array<[number, number]>; facing: number; activity: BreakActivity; lift: number;
 }> = {
-  sofaLeft: { pos: OFFICE_CONFIG.lounge.sofa.left, facing: Math.PI, activity: "SOFA" },
-  sofaRight: { pos: OFFICE_CONFIG.lounge.sofa.right, facing: Math.PI, activity: "SOFA" },
-  snacks: { pos: OFFICE_CONFIG.lounge.snacks, facing: -Math.PI / 2, activity: "SNACK" },
-  window: { pos: OFFICE_CONFIG.lounge.window, facing: Math.PI, activity: "WINDOW" },
+  sofaLeft: { pos: C.lounge.sofa.left, via: [[C.lounge.sofa.left[0], F]], facing: Math.PI, activity: "SIT", lift: C.rig.sofaLift },
+  sofaRight: { pos: C.lounge.sofa.right, via: [], facing: Math.PI, activity: "SIT", lift: C.rig.sofaLift },
+  beanbag: { pos: C.lounge.beanbagSpot, via: [[C.lounge.beanbagSpot[0], F]], facing: Math.PI, activity: "SIT", lift: C.rig.beanbagLift },
+  snacks: { pos: C.lounge.snackSpot, via: [[C.lounge.snackSpot[0], F]], facing: 0, activity: "SNACK", lift: 0 },
+  window: { pos: C.lounge.window, via: [[C.lounge.window[0], F]], facing: 0, activity: "STAND", lift: 0 },
+  windowLeft: { pos: C.lounge.windowLeft, via: [[C.lounge.windowLeft[0], F]], facing: 0, activity: "STAND", lift: 0 },
 };
-
-const BREAK_ORDER: BreakSpotId[] = ["sofaLeft", "sofaRight", "snacks", "window"];
+const BREAK_ORDER: BreakSpotId[] = ["sofaLeft", "snacks", "window", "sofaRight", "beanbag", "windowLeft"];
 const BREAK_PAIRS: Array<[number, number]> = [[0, 5], [1, 4], [2, 3]];
-
-// One shared reservation map makes the lounge behave like a small physical space.
-// It enforces the global max-break capacity and prevents two agents from selecting
-// the same sofa/snack/window slot.
 const breakReservations = new Map<BreakSpotId, string>();
 
+/* ---------- helpers ---------- */
 function seededRandom(seed: number) {
   let s = (seed >>> 0) || 1;
   return () => {
@@ -73,190 +41,172 @@ function seededRandom(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-function clamp01(value: number) {
-  return THREE.MathUtils.clamp(value, 0, 1);
+const clamp01 = (v: number) => THREE.MathUtils.clamp(v, 0, 1);
+const damp = (c: number, t: number, s: number, d: number) => THREE.MathUtils.damp(c, t, s, d);
+const easeInOut = (t: number) => C.easing.easeInOut(t);
+const lerp = THREE.MathUtils.lerp;
+function dampAngle(cur: number, target: number, s: number, dt: number) {
+  const diff = ((target - cur + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return cur + diff * (1 - Math.exp(-s * dt));
 }
+const isIdleState = (s: string) => s.toLowerCase() === "idle";
+const isLimitState = (s: string) => s.toLowerCase() === "limit";
+const chooseBreakSpot = (i: number, wave: number) => BREAK_ORDER[(i + wave) % BREAK_ORDER.length];
 
-function damp(current: number, target: number, smoothing: number, delta: number) {
-  return THREE.MathUtils.damp(current, target, smoothing, delta);
-}
-
-function easeInOut(t: number) {
-  return OFFICE_CONFIG.easing.easeInOut(t);
-}
-
-function isIdleState(state: string) {
-  return state.toLowerCase() === "idle";
-}
-
-function isLimitState(state: string) {
-  return state.toLowerCase() === "limit";
-}
-
-function chooseBreakSpot(workerIndex: number, wave: number) {
-  return BREAK_ORDER[(workerIndex + wave) % BREAK_ORDER.length];
-}
-
-function reserveBreakSpot(workerId: string, preferred: BreakSpotId) {
-  const current = breakReservations.get(preferred);
-  if (!current && breakReservations.size < OFFICE_CONFIG.movement.maxSimultaneousBreaks) {
-    breakReservations.set(preferred, workerId);
-    return preferred;
-  }
+function reserveBreakSpot(workerId: string, preferred: BreakSpotId, limit: boolean) {
+  if (!limit && breakReservations.size >= C.movement.maxSimultaneousBreaks) return null;
+  if (!breakReservations.has(preferred)) { breakReservations.set(preferred, workerId); return preferred; }
   for (const spot of BREAK_ORDER) {
-    if (!breakReservations.has(spot) && breakReservations.size < OFFICE_CONFIG.movement.maxSimultaneousBreaks) {
-      breakReservations.set(spot, workerId);
-      return spot;
-    }
+    if (!breakReservations.has(spot)) { breakReservations.set(spot, workerId); return spot; }
   }
   return null;
 }
-
 function releaseBreakSpot(workerId: string) {
-  for (const [spot, id] of breakReservations) {
-    if (id === workerId) breakReservations.delete(spot);
-  }
+  for (const [spot, id] of breakReservations) if (id === workerId) breakReservations.delete(spot);
 }
 
-function getBreakPlan(workerIndex: number, elapsed: number, externalState: string, random: () => number) {
-  if (isLimitState(externalState)) {
-    const preferred = chooseBreakSpot(workerIndex, Math.floor(elapsed / 17));
-    return { preferred, duration: Number.POSITIVE_INFINITY };
-  }
-  if (!isIdleState(externalState) || elapsed < OFFICE_CONFIG.movement.firstBreakDelay) return null;
-  const wave = Math.floor((elapsed - OFFICE_CONFIG.movement.firstBreakDelay) / OFFICE_CONFIG.movement.breakWaveInterval);
+function getBreakPlan(index: number, elapsed: number, ext: string, random: () => number) {
+  if (isLimitState(ext)) return { preferred: chooseBreakSpot(index, 0), duration: Infinity };
+  if (!isIdleState(ext) || elapsed < C.movement.firstBreakDelay) return null;
+  const wave = Math.floor((elapsed - C.movement.firstBreakDelay) / C.movement.breakWaveInterval);
   const pair = BREAK_PAIRS[wave % BREAK_PAIRS.length];
-  if (!pair.includes(workerIndex)) return null;
-
-  const local = (elapsed - OFFICE_CONFIG.movement.firstBreakDelay) % OFFICE_CONFIG.movement.breakWaveInterval;
-  const start = indexWithinPair(workerIndex, pair) * OFFICE_CONFIG.movement.breakStartSpacing;
+  if (!pair.includes(index)) return null;
+  const local = (elapsed - C.movement.firstBreakDelay) % C.movement.breakWaveInterval;
+  const start = (pair[0] === index ? 0 : 1) * C.movement.breakStartSpacing;
   if (local < start || local > start + 15) return null;
-
   return {
-    preferred: chooseBreakSpot(workerIndex, wave),
-    duration: THREE.MathUtils.lerp(
-      OFFICE_CONFIG.movement.breakDurationMin,
-      OFFICE_CONFIG.movement.breakDurationMax,
-      random(),
-    ),
+    preferred: chooseBreakSpot(index, wave),
+    duration: lerp(C.movement.breakDurationMin, C.movement.breakDurationMax, random()),
   };
 }
 
-function indexWithinPair(index: number, pair: [number, number]) {
-  return pair[0] === index ? 0 : 1;
-}
-
-function buildWalkCurve(start: THREE.Vector3, spot: BreakSpotId) {
-  const target = new THREE.Vector3(...BREAK_SPOTS[spot].pos);
-  const side = OFFICE_CONFIG.navigation.loungeCorridorX;
-  const corridorZ = OFFICE_CONFIG.navigation.mainCorridorZ;
-  const rearZ = OFFICE_CONFIG.navigation.loungeRearZ;
-  const anchors = [
-    start.clone(),
-    new THREE.Vector3(start.x, 0, corridorZ),
-    new THREE.Vector3(side, 0, corridorZ),
-    new THREE.Vector3(side, 0, rearZ),
-    target,
+// desk -> step out sideways -> aisle -> lounge lane -> lounge front -> spot. Reversed for the way back.
+function buildRoute(start: THREE.Vector3, id: string, spotId: BreakSpotId, back: boolean) {
+  const seat = getSeatTransform(DESKS[id]);
+  const sp = BREAK_SPOTS[spotId];
+  const ap = new THREE.Vector3(...seat.approachPosition);
+  const pts = [
+    ap,
+    new THREE.Vector3(ap.x, 0, seat.aisleZ),
+    new THREE.Vector3(C.navigation.laneX, 0, seat.aisleZ),
+    new THREE.Vector3(C.navigation.laneX, 0, F),
+    ...sp.via.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+    new THREE.Vector3(...sp.pos),
   ];
-  const curve = new THREE.CatmullRomCurve3(anchors, false, "centripetal", 0.38);
+  if (back) pts.reverse();
+  const anchors = [start.clone()];
+  for (const p of pts) if (anchors[anchors.length - 1].distanceTo(p) > 0.2) anchors.push(p);
+  if (anchors.length < 2) anchors.push(start.clone().add(new THREE.Vector3(0.01, 0, 0)));
+  const curve = new THREE.CatmullRomCurve3(anchors, false, "centripetal");
   return { curve, length: curve.getLength() };
-}
-
-function buildReturnCurve(start: THREE.Vector3, workerId: string) {
-  const home = new THREE.Vector3(...getSeatTransform(DESKS[workerId]).approachPosition);
-  const side = OFFICE_CONFIG.navigation.loungeCorridorX;
-  const corridorZ = OFFICE_CONFIG.navigation.mainCorridorZ;
-  const rearZ = OFFICE_CONFIG.navigation.loungeRearZ;
-  const anchors = [
-    start.clone(),
-    new THREE.Vector3(side, 0, rearZ),
-    new THREE.Vector3(side, 0, corridorZ),
-    new THREE.Vector3(home.x, 0, corridorZ),
-    home.clone(),
-  ];
-  const curve = new THREE.CatmullRomCurve3(anchors, false, "centripetal", 0.38);
-  return { curve, length: curve.getLength() };
-}
-
-function calculateLabelLanes() {
-  const lanes: number[] = [];
-  for (let i = 0; i < WORKER_DESK_IDS.length + 1; i++) lanes.push(0);
-
-  const ids = [...WORKER_DESK_IDS, "dira"];
-  for (let i = 0; i < ids.length; i++) {
-    const a = DESKS[ids[i]];
-    let lane = 0;
-    for (let j = 0; j < i; j++) {
-      const b = DESKS[ids[j]];
-      const close = Math.hypot(a[0] - b[0], a[2] - b[2]) < 3.4;
-      if (close) lane = Math.max(lane, lanes[j] + 1);
-    }
-    lanes[i] = lane;
-  }
-  return Object.fromEntries(ids.map((id, i) => [id, lanes[i]])) as Record<string, number>;
 }
 
 function colliderList() {
-  const result = OFFICE_CONFIG.navigation.staticObstacles.map((c) => ({
-    id: c.id,
-    minX: c.min[0],
-    maxX: c.max[0],
-    minZ: c.min[1],
-    maxZ: c.max[1],
+  const result = C.navigation.staticObstacles.map((c) => ({
+    id: c.id, minX: c.min[0], maxX: c.max[0], minZ: c.min[1], maxZ: c.max[1],
   }));
-
   for (const id of Object.keys(DESKS)) {
     const [x, , z] = DESKS[id];
-    const isHead = id === "dira";
-    const w = isHead ? OFFICE_CONFIG.workZone.desk.headWidth : OFFICE_CONFIG.workZone.desk.width;
-    const d = isHead ? OFFICE_CONFIG.workZone.desk.headDepth : OFFICE_CONFIG.workZone.desk.depth;
+    const head = id === "dira";
+    const w = head ? C.workZone.desk.headWidth : C.workZone.desk.width;
+    const d = head ? C.workZone.desk.headDepth : C.workZone.desk.depth;
     result.push({ id: `desk-${id}`, minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
     const seat = getSeatTransform(DESKS[id]);
+    const pad = C.navigation.obstaclePadding;
     result.push({
       id: `chair-${id}`,
-      minX: seat.chairPosition[0] - OFFICE_CONFIG.desks.chairWidth / 2 - OFFICE_CONFIG.navigation.obstaclePadding,
-      maxX: seat.chairPosition[0] + OFFICE_CONFIG.desks.chairWidth / 2 + OFFICE_CONFIG.navigation.obstaclePadding,
-      minZ: seat.chairPosition[2] - OFFICE_CONFIG.desks.chairSeatDepth / 2 - OFFICE_CONFIG.navigation.obstaclePadding,
-      maxZ: seat.chairPosition[2] + OFFICE_CONFIG.desks.chairSeatDepth / 2 + OFFICE_CONFIG.navigation.obstaclePadding,
+      minX: seat.chairPosition[0] - C.desks.chairWidth / 2 - pad, maxX: seat.chairPosition[0] + C.desks.chairWidth / 2 + pad,
+      minZ: seat.chairPosition[2] - C.desks.chairSeatDepth / 2 - pad, maxZ: seat.chairPosition[2] + C.desks.chairSeatDepth / 2 + pad,
     });
   }
   return result;
 }
 
+/* ---------- pose system: every mode writes targets, one place damps the rig toward them ---------- */
+type Pose = {
+  bodyY: number; bodyX: number; bodyPX: number; headY: number; headX: number;
+  ul: number; ur: number; el: number; er: number; ulz: number; urz: number;
+  hl: number; hr: number; kl: number; kr: number;
+};
+const STAND: Pose = {
+  bodyY: 0, bodyX: 0, bodyPX: 0, headY: 0, headX: 0,
+  ul: 0.05, ur: 0.05, el: 0.15, er: 0.15, ulz: -0.06, urz: 0.06, hl: 0, hr: 0, kl: 0, kr: 0,
+};
+// s: 0 = standing, 1 = seated. Thighs forward ~90deg, knees bent back ~90deg, hands on keyboard.
+function applySit(p: Pose, s: number, lift: number) {
+  p.bodyY = lift * s;
+  p.bodyX = -0.04 * s;
+  p.hl = p.hr = 1.55 * s;
+  p.kl = p.kr = -1.55 * s;
+  p.ul = p.ur = lerp(0.05, 1.15, s);
+  p.el = p.er = lerp(0.15, 0.35, s);
+}
+
+function workingPose(
+  p: Pose, elapsed: number, idx: number,
+  micro: { type: MicroAction; started: number; duration: number; next: number },
+  allowed: boolean, random: () => number,
+) {
+  const I = C.idle;
+  applySit(p, 1, C.rig.seatLift);
+  p.bodyY += Math.sin((elapsed + idx * 0.83) * 2 * Math.PI * I.breathingHz) * I.breathingAmplitude;
+
+  if (allowed && micro.type === "NONE" && elapsed >= micro.next) {
+    const roll = random();
+    const checks: Array<[number, MicroAction]> = [
+      [I.probabilities.stretch, "STRETCH"], [I.probabilities.scratch, "SCRATCH"], [I.probabilities.drink, "DRINK"],
+      [I.probabilities.lean, "LEAN"], [I.probabilities.shift, "SHIFT"], [1, "LOOK"],
+    ];
+    let cum = 0;
+    let picked: MicroAction = "LOOK";
+    for (const [w, t] of checks) { cum += w; if (roll <= cum) { picked = t; break; } }
+    micro.type = picked;
+    micro.started = elapsed;
+    micro.duration = lerp(0.9, 2.2, random());
+    micro.next = elapsed + lerp(I.microMinSeconds, I.microMaxSeconds, random());
+  }
+  const active = micro.type !== "NONE" && elapsed - micro.started < micro.duration;
+  if (!active && micro.type !== "NONE") micro.type = "NONE";
+  const wave = active ? Math.sin(easeInOut((elapsed - micro.started) / micro.duration) * Math.PI) : 0;
+
+  p.headX = Math.sin(elapsed * 0.65 + idx) * I.headNodAmplitude * 0.3;
+  p.headY = Math.sin(elapsed * 0.3 + idx * 2) * 0.05;
+  const amp = active && micro.type !== "LOOK" ? 0.02 : I.typingAmplitude;
+  const tL = Math.sin(elapsed * I.typingSpeed + idx);
+  const tR = Math.sin(elapsed * I.typingSpeed * 1.13 + idx * 1.7);
+  p.ul += tL * amp * 0.5; p.el += tL * amp;
+  p.ur += tR * amp * 0.5; p.er += tR * amp;
+
+  if (!active) return;
+  switch (micro.type) {
+    case "LOOK": p.headY = I.headTurnAmplitude * wave; break;
+    case "SCRATCH": p.ul = 1.15 + 1.3 * wave; p.el = 0.35 + 1.0 * wave; break;
+    case "DRINK": p.ul = 1.15 + 0.5 * wave; p.el = 0.35 + 0.9 * wave; p.ulz = -0.06 - 0.2 * wave; p.headX += 0.1 * wave; break;
+    case "LEAN": p.bodyX = -0.04 + 0.16 * wave; break;
+    case "STRETCH": p.ul = p.ur = 0.3; p.el = p.er = 0.1; p.ulz = -2.7 * wave; p.urz = 2.7 * wave; p.bodyX = 0.14 * wave; p.headX -= 0.15 * wave; break;
+    case "SHIFT": p.bodyPX = 0.1 * wave; break;
+  }
+}
+
+/* ---------- root ---------- */
 export default function OfficeWorld({
-  people,
-  running,
-  resting,
-  selected,
-  onSelect,
+  people, running, resting, selected, onSelect,
 }: {
-  people: Person[];
-  running: boolean;
-  resting: boolean;
-  selected: string | null;
-  onSelect: (id: string | null) => void;
+  people: Person[]; running: boolean; resting: boolean; selected: string | null; onSelect: (id: string | null) => void;
 }) {
   const [debug, setDebug] = useState(false);
-
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "d") setDebug((value) => !value);
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key.toLowerCase() === "d") setDebug((v) => !v); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const quality = OFFICE_CONFIG.quality[OFFICE_CONFIG.quality.preset];
-  const labelLanes = useMemo(() => calculateLabelLanes(), []);
+  const quality = C.quality[C.quality.preset];
   const hitboxes = useRef(new Map<string, THREE.Object3D>());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-
-  const registerHitbox = useCallback((id: string, object: THREE.Object3D | null) => {
-    if (object) hitboxes.current.set(id, object);
-    else hitboxes.current.delete(id);
+  const registerHitbox = useCallback((id: string, o: THREE.Object3D | null) => {
+    if (o) hitboxes.current.set(id, o); else hitboxes.current.delete(id);
   }, []);
-
 
   return (
     <Canvas
@@ -269,39 +219,36 @@ export default function OfficeWorld({
         gl.setPixelRatio(Math.min(window.devicePixelRatio, quality.dpr));
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.05;
+        gl.toneMappingExposure = 1.0;
         gl.shadowMap.type = THREE.PCFSoftShadowMap;
         gl.shadowMap.enabled = true;
-        scene.fog = new THREE.Fog("#aeb5bd", 30, 60);
+        scene.background = new THREE.Color("#c3ccd6");
+        scene.fog = new THREE.Fog("#c3ccd6", 45, 90);
       }}
     >
       <PerspectiveCamera makeDefault position={[19.5, 15.8, 21.5]} fov={32} near={0.1} far={140} />
-      <ambientLight intensity={0.16} />
-      <hemisphereLight args={["#91a8c5", "#5d3d2b", 1.25]} />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight args={["#e3eefa", "#9a7c5e", 1.1]} />
       <directionalLight
         castShadow
-        position={[6.5, 15, 11]}
-        intensity={4.8}
-        color="#ffd5a0"
+        position={[9, 16, 12]}
+        intensity={2.6}
+        color="#fff0d8"
         shadow-mapSize-width={quality.shadowMap}
         shadow-mapSize-height={quality.shadowMap}
-        shadow-bias={-0.00045}
-        shadow-normalBias={0.035}
+        shadow-camera-left={-19}
+        shadow-camera-right={19}
+        shadow-camera-top={19}
+        shadow-camera-bottom={-19}
+        shadow-camera-near={1}
+        shadow-camera-far={60}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.04}
       />
-      <pointLight position={[-8, 6.5, 1]} intensity={8} distance={25} color="#7897c8" />
-      <pointLight position={[8, 5.5, -6]} intensity={14} distance={22} color="#ffb56b" />
 
       <InteractionController hitboxes={hitboxes} onSelect={onSelect} onHover={setHoveredId} />
       <OfficeEnvironment resting={resting} />
-      <ContactShadows
-        position={[0, OFFICE_CONFIG.visual.floorOffset, 0]}
-        opacity={0.30}
-        scale={24}
-        blur={2.2}
-        far={8}
-        resolution={quality.contactResolution}
-        frames={quality.contactFrames}
-      />
+      <ContactShadows position={[0, C.visual.floorOffset, 0]} opacity={0.3} scale={26} blur={2.2} far={8} resolution={quality.contactResolution} frames={quality.contactFrames} />
 
       {people.map((person, index) => (
         <WorkerCharacter
@@ -313,7 +260,6 @@ export default function OfficeWorld({
           registerHitbox={registerHitbox}
           running={running}
           globalResting={resting}
-          labelLane={labelLanes[person.id] ?? 0}
           debug={debug}
         />
       ))}
@@ -325,31 +271,15 @@ export default function OfficeWorld({
         </div>
       </Html>
 
-      <OrbitControls
-        target={[0, 0.9, -0.5]}
-        minDistance={12}
-        maxDistance={29}
-        minPolarAngle={0.70}
-        maxPolarAngle={1.40}
-        enableDamping
-        dampingFactor={0.08}
-        enablePan
-      />
+      <OrbitControls target={[0, 0.9, 0.5]} minDistance={12} maxDistance={32} minPolarAngle={0.7} maxPolarAngle={1.4} enableDamping dampingFactor={0.08} enablePan />
     </Canvas>
   );
 }
 
-function InteractionController({
-  hitboxes,
-  onSelect,
-  onHover,
-}: {
-  hitboxes: MutableRefObject<Map<string, THREE.Object3D>>;
-  onSelect: (id: string | null) => void;
-  onHover: (id: string | null) => void;
+function InteractionController({ hitboxes, onSelect, onHover }: {
+  hitboxes: MutableRefObject<Map<string, THREE.Object3D>>; onSelect: (id: string | null) => void; onHover: (id: string | null) => void;
 }) {
   const { gl, camera } = useThree();
-
   useEffect(() => {
     const canvas = gl.domElement;
     const raycaster = new THREE.Raycaster();
@@ -358,23 +288,16 @@ function InteractionController({
     let pendingMove: PointerEvent | null = null;
     let down: { x: number; y: number } | null = null;
 
-    const pointerToRay = (event: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const width = Math.max(1, rect.width);
-      const height = Math.max(1, rect.height);
-      pointer.x = ((event.clientX - rect.left) / width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-    };
-
     const raycastWorker = (event: PointerEvent) => {
-      pointerToRay(event);
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
       const targets = Array.from(hitboxes.current.values());
       if (!targets.length) return null;
       const hits = raycaster.intersectObjects(targets, false);
-      return hits[0]?.object.userData.workerId as string | undefined ?? null;
+      return (hits[0]?.object.userData.workerId as string | undefined) ?? null;
     };
-
     const applyHover = () => {
       hoverRaf = 0;
       if (!pendingMove) return;
@@ -383,35 +306,18 @@ function InteractionController({
       canvas.style.cursor = id ? "pointer" : "grab";
       pendingMove = null;
     };
-
-    const onMove = (event: PointerEvent) => {
-      pendingMove = event;
-      if (!hoverRaf) hoverRaf = requestAnimationFrame(applyHover);
-    };
-
-    const onDown = (event: PointerEvent) => {
-      down = { x: event.clientX, y: event.clientY };
-      canvas.style.cursor = "grabbing";
-    };
-
-    const onUp = (event: PointerEvent) => {
+    const onMove = (e: PointerEvent) => { pendingMove = e; if (!hoverRaf) hoverRaf = requestAnimationFrame(applyHover); };
+    const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY }; canvas.style.cursor = "grabbing"; };
+    const onUp = (e: PointerEvent) => {
       if (!down) return;
-      const moved = Math.hypot(event.clientX - down.x, event.clientY - down.y);
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       down = null;
-      if (moved <= 5) onSelect(raycastWorker(event));
-      const id = raycastWorker(event);
+      const id = raycastWorker(e);
+      if (moved <= 5) onSelect(id);
       canvas.style.cursor = id ? "pointer" : "grab";
     };
-
-    const onLeave = () => {
-      pendingMove = null;
-      onHover(null);
-      canvas.style.cursor = "grab";
-    };
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onSelect(null);
-    };
+    const onLeave = () => { pendingMove = null; onHover(null); canvas.style.cursor = "grab"; };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onSelect(null); };
 
     canvas.addEventListener("pointermove", onMove, { passive: true });
     canvas.addEventListener("pointerdown", onDown, { passive: true });
@@ -419,7 +325,6 @@ function InteractionController({
     canvas.addEventListener("pointercancel", onLeave, { passive: true });
     canvas.addEventListener("pointerleave", onLeave, { passive: true });
     window.addEventListener("keydown", onKey);
-
     return () => {
       if (hoverRaf) cancelAnimationFrame(hoverRaf);
       canvas.removeEventListener("pointermove", onMove);
@@ -430,90 +335,75 @@ function InteractionController({
       window.removeEventListener("keydown", onKey);
     };
   }, [camera, gl, hitboxes, onHover, onSelect]);
-
   return null;
 }
 
+/* ---------- environment (brighter, decluttered) ---------- */
 function OfficeEnvironment({ resting }: { resting: boolean }) {
-  const floorMat = useRef<THREE.MeshStandardMaterial>(null);
-  useFrame((state) => {
-    if (floorMat.current) {
-      floorMat.current.roughness = 0.94 + Math.sin(state.clock.elapsedTime * 0.35) * 0.012;
-    }
-  });
-
   return (
     <group>
       <mesh position={[0, -0.34, 0]} receiveShadow>
-        <boxGeometry args={[OFFICE_CONFIG.room.width, 0.52, OFFICE_CONFIG.room.depth]} />
-        <meshStandardMaterial color="#4a3328" roughness={0.88} />
+        <boxGeometry args={[C.room.width, 0.52, C.room.depth]} />
+        <meshStandardMaterial color="#6b5040" roughness={0.88} />
       </mesh>
-      <mesh ref={floorMat} position={[0, -0.06, 0]} receiveShadow>
-        <boxGeometry args={[OFFICE_CONFIG.room.width - 0.28, 0.10, OFFICE_CONFIG.room.depth - 0.28]} />
-        <meshStandardMaterial color="#9a7253" roughness={0.91} />
+      <mesh position={[0, -0.06, 0]} receiveShadow>
+        <boxGeometry args={[C.room.width - 0.28, 0.1, C.room.depth - 0.28]} />
+        <meshStandardMaterial color="#c9a57f" roughness={0.9} />
       </mesh>
-
       <FloorPlanks />
       <Walls />
       <Windows />
       <CeilingLights resting={resting} />
+      <FloorRugs />
       <WorkFurniture />
       <Lounge />
       <WallBoard />
       <Door />
-      <ArchitectureDetails />
       <OfficeBranding />
-      <WallArt />
       <BookcaseRow />
-      <FloorRugs />
-      <WarmTableLamps />
     </group>
   );
 }
 
 function FloorPlanks() {
-  const rows = 18;
   return (
     <group>
-      {Array.from({ length: rows }).map((_, row) => (
-        <mesh key={row} position={[0, -0.003, -9.55 + row * 1.12]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[27.35, 0.018]} />
-          <meshBasicMaterial color={row % 2 ? "#a88360" : "#966f4d"} transparent opacity={0.34} />
+      {Array.from({ length: 21 }).map((_, row) => (
+        <mesh key={row} position={[0, -0.003, -11 + row * 1.1]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[29.4, 0.02]} />
+          <meshBasicMaterial color={row % 2 ? "#b08b66" : "#a07c58"} transparent opacity={0.4} />
         </mesh>
       ))}
-      {Array.from({ length: 27 }).map((_, i) => (
-        <mesh key={"v" + i} position={[-13.1 + i * 1.01, -0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[0.014, 20.2]} />
-          <meshBasicMaterial color="#9b7553" transparent opacity={0.25} />
+      {Array.from({ length: 29 }).map((_, i) => (
+        <mesh key={"v" + i} position={[-14 + i * 1.0, -0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.015, 22.4]} />
+          <meshBasicMaterial color="#a88460" transparent opacity={0.25} />
         </mesh>
       ))}
-      <mesh position={[...OFFICE_CONFIG.lounge.center]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={OFFICE_CONFIG.lounge.size} />
-        <meshStandardMaterial color="#716184" roughness={0.96} />
-      </mesh>
     </group>
   );
 }
 
 function Walls() {
+  const R = C.room;
   return (
     <group>
-      <mesh position={[0, OFFICE_CONFIG.room.wallHeight / 2, OFFICE_CONFIG.room.backWallZ]} receiveShadow>
-        <boxGeometry args={[OFFICE_CONFIG.room.width, OFFICE_CONFIG.room.wallHeight, 0.28]} />
-        <meshStandardMaterial color="#2a2c33" roughness={0.94} />
+      <mesh position={[0, R.wallHeight / 2, R.backWallZ]} receiveShadow>
+        <boxGeometry args={[R.width, R.wallHeight, 0.28]} />
+        <meshStandardMaterial color="#e6e1d7" roughness={0.95} />
       </mesh>
-      <mesh position={[OFFICE_CONFIG.room.leftWallX, OFFICE_CONFIG.room.wallHeight / 2, 0]} receiveShadow>
-        <boxGeometry args={[0.28, OFFICE_CONFIG.room.wallHeight, OFFICE_CONFIG.room.depth]} />
-        <meshStandardMaterial color="#20232a" roughness={0.94} />
+      <mesh position={[R.leftWallX, R.wallHeight / 2, 0]} receiveShadow>
+        <boxGeometry args={[0.28, R.wallHeight, R.depth]} />
+        <meshStandardMaterial color="#ddd7cb" roughness={0.95} />
       </mesh>
-      <mesh position={[OFFICE_CONFIG.room.rightWallX, OFFICE_CONFIG.room.wallHeight / 2, 0]} receiveShadow>
-        <boxGeometry args={[0.28, OFFICE_CONFIG.room.wallHeight, OFFICE_CONFIG.room.depth]} />
-        <meshStandardMaterial color="#d2c8b7" roughness={0.99} />
+      <mesh position={[R.rightWallX, R.wallHeight / 2, 0]} receiveShadow>
+        <boxGeometry args={[0.28, R.wallHeight, R.depth]} />
+        <meshStandardMaterial color="#e9e4d9" roughness={0.95} />
       </mesh>
-      <mesh position={[0, 0.22, OFFICE_CONFIG.room.backWallZ + 0.18]} receiveShadow>
-        <boxGeometry args={[OFFICE_CONFIG.room.width, 0.22, 0.12]} />
-        <meshStandardMaterial color="#17191f" roughness={0.78} />
-      </mesh>
+      {/* baseboards */}
+      <mesh position={[0, 0.2, R.backWallZ + 0.17]}><boxGeometry args={[R.width, 0.4, 0.08]} /><meshStandardMaterial color="#8d7966" roughness={0.7} /></mesh>
+      <mesh position={[R.leftWallX + 0.17, 0.2, 0]}><boxGeometry args={[0.08, 0.4, R.depth]} /><meshStandardMaterial color="#8d7966" roughness={0.7} /></mesh>
+      <mesh position={[R.rightWallX - 0.17, 0.2, 0]}><boxGeometry args={[0.08, 0.4, R.depth]} /><meshStandardMaterial color="#8d7966" roughness={0.7} /></mesh>
     </group>
   );
 }
@@ -521,23 +411,17 @@ function Walls() {
 function Windows() {
   return (
     <group>
-      {[-10.2, -4.4, 1.4, 7.2].map((x) => (
-        <group key={x} position={[x, 5.05, -10.30]}>
-          <RoundedBox args={[4.7, 2.35, 0.10]} radius={0.07} smoothness={2} castShadow>
-            <meshStandardMaterial color="#26323e" roughness={0.42} metalness={0.12} />
+      {[-11.6, -7.6, 3.6, 7.6].map((x) => (
+        <group key={x} position={[x, 4.6, -11.3]}>
+          <RoundedBox args={[3.4, 2.4, 0.1]} radius={0.04} smoothness={2} castShadow>
+            <meshStandardMaterial color="#8a7a66" roughness={0.6} />
           </RoundedBox>
           <mesh position={[0, 0, 0.06]}>
-            <boxGeometry args={[4.42, 2.08, 0.018]} />
-            <meshStandardMaterial color="#182634" roughness={0.20} emissive="#355f86" emissiveIntensity={0.18} />
+            <boxGeometry args={[3.14, 2.14, 0.02]} />
+            <meshStandardMaterial color="#b5d5ea" emissive="#8fc0e6" emissiveIntensity={0.55} roughness={0.2} />
           </mesh>
-          <mesh position={[0, 0, 0.085]}>
-            <boxGeometry args={[0.065, 2.18, 0.018]} />
-            <meshStandardMaterial color="#806d56" />
-          </mesh>
-          <mesh position={[0, 0, 0.085]}>
-            <boxGeometry args={[4.46, 0.065, 0.018]} />
-            <meshStandardMaterial color="#806d56" />
-          </mesh>
+          <mesh position={[0, 0, 0.085]}><boxGeometry args={[0.06, 2.14, 0.02]} /><meshStandardMaterial color="#8a7a66" /></mesh>
+          <mesh position={[0, 0, 0.085]}><boxGeometry args={[3.14, 0.06, 0.02]} /><meshStandardMaterial color="#8a7a66" /></mesh>
         </group>
       ))}
     </group>
@@ -545,68 +429,67 @@ function Windows() {
 }
 
 function CeilingLights({ resting }: { resting: boolean }) {
-  const colors = ["#bedcff", "#fff0c8", "#d7c8ff", "#baf2d8"];
   return (
     <group>
-      {[-8.8, -3.0, 2.8, 8.6].map((x, i) => (
-        <group key={x} position={[x, 6.15, -0.6]}>
-          <mesh castShadow>
-            <RoundedBox args={[1.7, 0.08, 0.76]} radius={0.03} smoothness={2}>
-              <meshStandardMaterial
-                color="#f4eee2"
-                emissive={colors[i]}
-                emissiveIntensity={resting ? 0.07 : 0.32}
-              />
-            </RoundedBox>
-          </mesh>
-          <pointLight intensity={resting ? 2.0 : 6.0} distance={7} color={colors[i]} />
+      {[-6, 0, 6].map((x) =>
+        [-2, 4].map((z) => (
+          <group key={`${x}-${z}`} position={[x, 6.9, z]}>
+            <mesh><boxGeometry args={[1.8, 0.06, 0.7]} /><meshStandardMaterial color="#f4eee2" emissive="#fff3d6" emissiveIntensity={resting ? 0.25 : 0.7} /></mesh>
+          </group>
+        )),
+      )}
+    </group>
+  );
+}
+
+function OfficeBranding() {
+  return (
+    <group position={[12, 4.6, -11.28]}>
+      <RoundedBox args={[5.2, 2.25, 0.1]} radius={0.06} smoothness={3} castShadow><meshStandardMaterial color="#1c2430" roughness={0.4} /></RoundedBox>
+      <Html center position={[0, 0, 0.08]} distanceFactor={12} style={{ pointerEvents: "none" }}>
+        <div className="officeBrand"><div className="officeBrandIcon">◈</div><div className="officeBrandTitle">AI AGENT OFFICE</div><div className="officeBrandSub">YOUTUBE FACTORY · AUTONOMOUS STUDIO</div></div>
+      </Html>
+    </group>
+  );
+}
+
+function BookcaseRow() {
+  return (
+    <group>
+      {[-10.5, -8.2, -5.9, 8.0].map((x, i) => (
+        <group key={x} position={[x, 1.6, -10.88]}>
+          <mesh castShadow><boxGeometry args={[1.9, 3.2, 0.56]} /><meshStandardMaterial color="#6a4f3c" roughness={0.85} /></mesh>
+          {[0.85, 0.02, -0.82].map((y, j) => (
+            <mesh key={j} position={[0, y, 0.31]}><boxGeometry args={[1.72, 0.08, 0.08]} /><meshStandardMaterial color="#8d6a4f" roughness={0.9} /></mesh>
+          ))}
+          {[-0.62, -0.2, 0.2, 0.62].map((x2, j) => (
+            <mesh key={j} position={[x2, 0.45 + (j % 2) * 0.05, 0.37]} rotation={[0, (j % 2) * 0.08, 0]}>
+              <boxGeometry args={[0.2, 0.62, 0.13]} /><meshStandardMaterial color={["#c2655e", "#dcae55", "#558aa8", "#7ba27c"][j]} />
+            </mesh>
+          ))}
+          {i % 2 === 0 && <Plant position={[0, 1.62, 0.3]} scale={0.6} />}
         </group>
       ))}
     </group>
   );
 }
 
-function ArchitectureDetails() {
-  return <group>
-    {[-11,-5.5,0,5.5,11].map(x=><mesh key={"beam"+x} position={[x,7.38,0]} castShadow><boxGeometry args={[0.18,0.24,22.4]}/><meshStandardMaterial color="#171a20" roughness={0.72}/></mesh>)}
-    {[-11,-5.5,0,5.5,11].map(z=><mesh key={"cross"+z} position={[0,7.38,z]} castShadow><boxGeometry args={[29.6,0.24,0.18]}/><meshStandardMaterial color="#171a20" roughness={0.72}/></mesh>)}
-    <mesh position={[0,0.30,OFFICE_CONFIG.room.backWallZ+0.18]} castShadow><boxGeometry args={[29.5,0.36,0.18]}/><meshStandardMaterial color="#25212a" roughness={0.7}/></mesh>
-    <mesh position={[OFFICE_CONFIG.room.leftWallX+0.18,0.30,0]} castShadow><boxGeometry args={[0.18,0.36,22.5]}/><meshStandardMaterial color="#25212a" roughness={0.7}/></mesh>
-    <mesh position={[OFFICE_CONFIG.room.rightWallX-0.18,0.30,0]} castShadow><boxGeometry args={[0.18,0.36,22.5]}/><meshStandardMaterial color="#25212a" roughness={0.7}/></mesh>
-    <mesh position={[-0.6,2.1,-7.0]}><boxGeometry args={[0.06,4.2,8.8]}/><meshStandardMaterial color="#7b8a98" transparent opacity={0.10} roughness={0.12} metalness={0.25}/></mesh>
-  </group>;
-}
-
-function OfficeBranding() {
-  return <group position={[10.6,4.45,-11.28]}>
-    <RoundedBox args={[5.2,2.25,0.10]} radius={0.08} smoothness={3} castShadow><meshStandardMaterial color="#121820" roughness={0.36} metalness={0.12}/></RoundedBox>
-    <Html center position={[0,0,0.08]} distanceFactor={12}><div className="officeBrand"><div className="officeBrandIcon">◈</div><div className="officeBrandTitle">AI AGENT OFFICE</div><div className="officeBrandSub">YOUTUBE FACTORY · AUTONOMOUS STUDIO</div></div></Html>
-    <pointLight position={[0,0,0.4]} intensity={3.5} distance={7} color="#6e83ff"/>
-  </group>;
-}
-
-function WallArt() {
-  const frames=[{x:-10.0,y:4.15,w:2.15,h:2.65,c:"#315a78",title:"BUILD\nREPEAT"},{x:-7.55,y:4.15,w:2.15,h:2.65,c:"#6a4d78",title:"CREATE\nSHIP"},{x:7.35,y:4.0,w:2.15,h:2.55,c:"#5d4233",title:"PLAN\nEXECUTE"},{x:9.75,y:4.0,w:2.15,h:2.55,c:"#425e51",title:"IDEA\nEDIT"}];
-  return <group>{frames.map((f,i)=><group key={i} position={[f.x,f.y,-11.30]}><mesh castShadow><boxGeometry args={[f.w,f.h,0.08]}/><meshStandardMaterial color="#171a20" roughness={0.42}/></mesh><mesh position={[0,0,0.06]}><boxGeometry args={[f.w-0.18,f.h-0.18,0.018]}/><meshStandardMaterial color={f.c} emissive={f.c} emissiveIntensity={0.10}/></mesh><Html center position={[0,0,0.08]} distanceFactor={15}><div className="wallArtText">{f.title.split("\n").map((x,j)=><div key={j}>{x}</div>)}</div></Html></group>)}</group>;
-}
-
-function BookcaseRow() {
-  const xs=[-10.5,-8.2,-5.9,8.0];
-  return <group>{xs.map((x,i)=><group key={x} position={[x,1.7,-10.88]}><mesh castShadow><boxGeometry args={[1.9,3.25,0.56]}/><meshStandardMaterial color="#2d211b" roughness={0.88}/></mesh>{[0.88,0.02,-0.84].map((y,j)=><mesh key={j} position={[0,y,0.31]}><boxGeometry args={[1.72,0.08,0.08]}/><meshStandardMaterial color="#624532" roughness={0.9}/></mesh>)}{[-0.62,-0.20,0.20,0.62].map((x2,j)=><mesh key={j} position={[x2,0.42+(j%2)*0.05,0.37]} rotation={[0,(j%2)*0.08,0]}><boxGeometry args={[0.20,0.62,0.13]}/><meshStandardMaterial color={["#b45b55","#d2a34f","#4c7894","#6e9270"][j]}/></mesh>)}{i%2===0&&<Plant position={[0,1.72,0.36]} scale={0.65}/>}</group>)}</group>;
-}
-
 function FloorRugs() {
-  return <group>
-    <mesh position={[0,0.008,1.0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[12.8,7.1]}/><meshStandardMaterial color="#3d3946" roughness={0.98}/></mesh>
-    <mesh position={[0,0.012,1.0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[12.2,6.5]}/><meshStandardMaterial color="#514753" roughness={0.99}/></mesh>
-    <mesh position={[6.1,0.015,-8.05]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[10.2,5.4]}/><meshStandardMaterial color="#302a38" roughness={0.99}/></mesh>
-    <mesh position={[6.1,0.018,-8.05]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[9.7,4.9]}/><meshStandardMaterial color="#514154" roughness={1}/></mesh>
-  </group>;
-}
-
-function WarmTableLamps() {
-  const spots=[[-4.1,1.65,1.35],[0,1.65,1.35],[4.1,1.65,1.35],[-2,1.65,-1.05],[2,1.65,-1.05],[0,1.75,6.0]];
-  return <group>{spots.map((p,i)=><group key={i} position={p as [number,number,number]}><mesh position={[0,0.12,0]} castShadow><cylinderGeometry args={[0.06,0.09,0.24,10]}/><meshStandardMaterial color="#3b2d26"/></mesh><mesh position={[0,0.30,0]}><sphereGeometry args={[0.14,12,8]}/><meshStandardMaterial color="#ffe6aa" emissive="#ffb85c" emissiveIntensity={0.55}/></mesh><pointLight position={[0,0.35,0]} intensity={1.3} distance={3.2} color="#ffb86a"/></group>)}</group>;
+  const [lx, , lz] = C.lounge.center;
+  const [lw, ld] = C.lounge.size;
+  return (
+    <group>
+      {/* team rug */}
+      <mesh position={[0, 0.008, 0.9]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[11.8, 8.6]} /><meshStandardMaterial color="#6f6281" roughness={0.98} /></mesh>
+      <mesh position={[0, 0.012, 0.9]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[11.2, 8.0]} /><meshStandardMaterial color="#8a7d9c" roughness={0.99} /></mesh>
+      {/* head rug */}
+      <mesh position={[0, 0.009, 7.1]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[4.6, 3.0]} /><meshStandardMaterial color="#75668a" roughness={0.98} /></mesh>
+      <mesh position={[0, 0.013, 7.1]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[4.2, 2.6]} /><meshStandardMaterial color="#94869f" roughness={0.99} /></mesh>
+      {/* lounge rug */}
+      <mesh position={[lx, 0.015, lz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[lw, ld]} /><meshStandardMaterial color="#6a5a7c" roughness={0.98} /></mesh>
+      <mesh position={[lx, 0.018, lz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[lw - 0.5, ld - 0.5]} /><meshStandardMaterial color="#85769a" roughness={0.99} /></mesh>
+    </group>
+  );
 }
 
 function WorkFurniture() {
@@ -614,36 +497,44 @@ function WorkFurniture() {
     <group>
       {WORKER_DESK_IDS.map((id) => <Desk key={id} id={id} position={DESKS[id]} />)}
       <Desk id="dira" position={DESKS.dira} />
-      <Shelf position={OFFICE_CONFIG.decor.shelf} />
-      <Printer position={OFFICE_CONFIG.decor.printer} />
-      <ServerRack position={OFFICE_CONFIG.decor.server} />
+      <Shelf position={C.decor.shelf} />
+      <Printer position={C.decor.printer} />
+      <ServerRack position={C.decor.server} />
     </group>
   );
 }
 
 function Desk({ id, position }: { id: string; position: [number, number, number] }) {
   const head = id === "dira";
-  const w = head ? OFFICE_CONFIG.workZone.desk.headWidth : OFFICE_CONFIG.workZone.desk.width;
-  const d = head ? OFFICE_CONFIG.workZone.desk.headDepth : OFFICE_CONFIG.workZone.desk.depth;
+  const w = head ? C.workZone.desk.headWidth : C.workZone.desk.width;
+  const d = head ? C.workZone.desk.headDepth : C.workZone.desk.depth;
+  const top = C.workZone.desk.topY;
+  const th = C.workZone.desk.thickness;
   return (
-    <group position={position} rotation={[0, OFFICE_CONFIG.desks.rotationY, 0]}>
-      <mesh position={[0, OFFICE_CONFIG.workZone.desk.topY, 0]} castShadow receiveShadow>
-        <RoundedBox args={[w, 0.22, d]} radius={0.08} smoothness={2}>
-          <meshStandardMaterial color={head ? "#4c3a58" : "#3b2921"} roughness={0.66} metalness={0.03} />
-          <Edges color={head ? "#cab3ff" : "#b69373"} threshold={30} lineWidth={1} />
-        </RoundedBox>
-      </mesh>
-      {[[-0.86, 0.66, -0.37], [0.86, 0.66, -0.37], [-0.86, 0.66, 0.37], [0.86, 0.66, 0.37]].map((p, i) => (
-        <mesh key={i} position={p as [number, number, number]} castShadow>
-          <boxGeometry args={[0.13, 1.54, 0.13]} />
-          <meshStandardMaterial color="#211714" roughness={0.86} />
+    <group position={position} rotation={[0, C.desks.rotationY, 0]}>
+      <RoundedBox args={[w, th, d]} radius={0.04} smoothness={2} position={[0, top - th / 2, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={head ? "#6a5482" : "#7a5a42"} roughness={0.6} />
+        <Edges color={head ? "#d9c8ff" : "#d8bb98"} threshold={30} lineWidth={1} />
+      </RoundedBox>
+      {[-1, 1].flatMap((sx) => [-1, 1].map((sz) => (
+        <mesh key={`${sx}${sz}`} position={[sx * (w / 2 - 0.15), (top - th) / 2, sz * (d / 2 - 0.13)]} castShadow>
+          <boxGeometry args={[0.12, top - th, 0.12]} />
+          <meshStandardMaterial color="#3a2a22" roughness={0.85} />
         </mesh>
-      ))}
-      <Monitor head={head} />
-      <Keyboard />
-      <Mug />
-      <PaperStack />
-      <DeskLamp head={head} />
+      )))}
+      {/* everything below sits ON the desk surface (y = 0 here is the surface) */}
+      <group position={[0, top, 0]}>
+        <Monitor head={head} />
+        <mesh position={[0, 0.02, 0.4]}><boxGeometry args={[0.84, 0.04, 0.28]} /><meshStandardMaterial color="#2a3038" roughness={0.5} /></mesh>
+        <mesh position={[-0.85, 0.09, 0.3]} castShadow><cylinderGeometry args={[0.11, 0.12, 0.18, 12]} /><meshStandardMaterial color="#efe8dc" roughness={0.8} /></mesh>
+        {[0, 0.028, 0.056].map((y) => (
+          <mesh key={y} position={[0.7, 0.014 + y, 0.3]}><boxGeometry args={[0.43, 0.024, 0.33]} /><meshStandardMaterial color="#f3efe9" roughness={0.95} /></mesh>
+        ))}
+        <group position={[head ? 1.1 : 0.95, 0, -0.2]}>
+          <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.035, 0.035, 0.5, 8]} /><meshStandardMaterial color="#3b444d" roughness={0.7} /></mesh>
+          <mesh position={[0, 0.53, 0]}><coneGeometry args={[head ? 0.23 : 0.19, 0.22, 12]} /><meshStandardMaterial color="#e6b75b" emissive="#c98a2a" emissiveIntensity={0.3} /></mesh>
+        </group>
+      </group>
     </group>
   );
 }
@@ -652,175 +543,167 @@ function Monitor({ head }: { head: boolean }) {
   const screen = useRef<THREE.MeshStandardMaterial>(null);
   const cursor = useRef<THREE.Mesh>(null);
   useFrame((state) => {
-    if (screen.current) screen.current.emissiveIntensity = 0.43 + Math.sin(state.clock.elapsedTime * OFFICE_CONFIG.visual.monitorPulseSpeed) * 0.06;
-    if (cursor.current) cursor.current.position.x = -0.36 + ((state.clock.elapsedTime * OFFICE_CONFIG.visual.cursorSpeed) % 0.66);
+    if (screen.current) screen.current.emissiveIntensity = 0.55 + Math.sin(state.clock.elapsedTime * C.visual.monitorPulseSpeed) * 0.06;
+    if (cursor.current) cursor.current.position.x = -0.36 + ((state.clock.elapsedTime * C.visual.cursorSpeed) % 0.66);
   });
   return (
-    <group position={[0, 2.03, -0.24]}>
-      <RoundedBox args={[head ? 1.26 : 1.10, 0.70, 0.10]} radius={0.04} smoothness={2} castShadow>
-        <meshStandardMaterial color="#0c1117" roughness={0.35} />
-      </RoundedBox>
+    <group position={[0, 0.66, -0.24]}>
+      <RoundedBox args={[head ? 1.26 : 1.1, 0.7, 0.1]} radius={0.04} smoothness={2} castShadow><meshStandardMaterial color="#0c1117" roughness={0.35} /></RoundedBox>
       <mesh position={[0, -0.02, 0.058]}>
-        <boxGeometry args={[head ? 1.00 : 0.88, 0.48, 0.02]} />
+        <boxGeometry args={[head ? 1.0 : 0.88, 0.48, 0.02]} />
         <meshStandardMaterial ref={screen} color="#17333e" emissive="#49c4ed" roughness={0.24} />
       </mesh>
       {[-0.31, 0, 0.25].map((x, i) => (
-        <mesh key={i} position={[x, 0.12, 0.08]}>
-          <boxGeometry args={[i === 0 ? 0.16 : 0.13, 0.035, 0.008]} />
-          <meshBasicMaterial color={i === 2 ? "#f4d26e" : "#58b9e2"} />
-        </mesh>
+        <mesh key={i} position={[x, 0.12, 0.08]}><boxGeometry args={[i === 0 ? 0.16 : 0.13, 0.035, 0.008]} /><meshBasicMaterial color={i === 2 ? "#f4d26e" : "#58b9e2"} /></mesh>
       ))}
-      <mesh ref={cursor} position={[-0.36, -0.14, 0.09]}>
-        <boxGeometry args={[0.02, 0.06, 0.009]} />
-        <meshBasicMaterial color="#f7f4dc" />
-      </mesh>
-      <mesh position={[0, -0.58, 0]}>
-        <boxGeometry args={[0.11, 0.55, 0.11]} />
-        <meshStandardMaterial color="#47535e" />
-      </mesh>
-      <mesh position={[0, -0.85, 0]}>
-        <boxGeometry args={[0.68, 0.07, 0.30]} />
-        <meshStandardMaterial color="#303941" />
-      </mesh>
+      <mesh ref={cursor} position={[-0.36, -0.14, 0.09]}><boxGeometry args={[0.02, 0.06, 0.009]} /><meshBasicMaterial color="#f7f4dc" /></mesh>
+      <mesh position={[0, -0.46, 0]}><boxGeometry args={[0.11, 0.24, 0.11]} /><meshStandardMaterial color="#47535e" /></mesh>
+      <mesh position={[0, -0.625, 0]}><boxGeometry args={[0.68, 0.05, 0.3]} /><meshStandardMaterial color="#303941" /></mesh>
     </group>
   );
-}
-
-function Keyboard() {
-  return <mesh position={[0, 1.60, 0.18]}><boxGeometry args={[0.84, 0.04, 0.28]} /><meshStandardMaterial color="#222830" roughness={0.52} /></mesh>;
-}
-
-function Mug() {
-  return <mesh position={[-0.78, 1.66, 0.20]} castShadow><cylinderGeometry args={[0.11, 0.12, 0.18, 12]} /><meshStandardMaterial color="#ede5d9" roughness={0.82}/></mesh>;
-}
-
-function PaperStack() {
-  return <group>{[0, 0.028, 0.056].map((y) => <mesh key={y} position={[0.66, 1.61 + y, 0.23]}><boxGeometry args={[0.43, 0.024, 0.33]} /><meshStandardMaterial color="#f3efe9" roughness={0.96}/></mesh>)}</group>;
-}
-
-function DeskLamp({ head }: { head: boolean }) {
-  return <group position={[0.90, 1.59, -0.20]}>
-    <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.035, 0.035, 0.50, 8]} /><meshStandardMaterial color="#3b444d" roughness={0.7}/></mesh>
-    <mesh position={[0, 0.53, 0]}><coneGeometry args={[head ? 0.23 : 0.19, 0.22, 12]} /><meshStandardMaterial color="#e6b75b" emissive="#6d4b18" emissiveIntensity={0.18}/></mesh>
-  </group>;
 }
 
 function Lounge() {
   return (
     <group>
       <Sofa />
-      <VendingMachine position={OFFICE_CONFIG.lounge.snacks} />
-      <Beanbag position={OFFICE_CONFIG.lounge.beanbagA} />
-      <Beanbag position={OFFICE_CONFIG.lounge.beanbagB} />
-      <CoffeeTable position={OFFICE_CONFIG.lounge.coffeeTable} />
-      {OFFICE_CONFIG.decor.plants.map((p, i) => <Plant key={i} position={p} />)}
+      <VendingMachine position={C.lounge.snacks} />
+      <Beanbag position={C.lounge.beanbagA} />
+      <Beanbag position={C.lounge.beanbagB} />
+      <CoffeeTable position={C.lounge.coffeeTable} />
+      {C.decor.plants.map((p, i) => <Plant key={i} position={p} />)}
     </group>
   );
 }
 
 function Sofa() {
-  return <group position={[5.55, 0, -8.53]}>
-    <RoundedBox args={[4.20, 0.68, 1.02]} radius={0.18} smoothness={3} position={[0, 0.50, 0]} castShadow>
-      <meshStandardMaterial color="#6d5977" roughness={0.91} />
-      <Edges color="#a28cab" threshold={28} lineWidth={0.8} />
-    </RoundedBox>
-    <RoundedBox args={[0.36, 1.55, 1.02]} radius={0.12} smoothness={3} position={[-1.92, 1.02, 0]} castShadow><meshStandardMaterial color="#6d5977" /></RoundedBox>
-    <RoundedBox args={[0.36, 1.55, 1.02]} radius={0.12} smoothness={3} position={[1.92, 1.02, 0]} castShadow><meshStandardMaterial color="#6d5977" /></RoundedBox>
-    <RoundedBox args={[3.15, 0.68, 0.18]} radius={0.08} smoothness={2} position={[0, 1.04, -0.40]}><meshStandardMaterial color="#765f7e" /></RoundedBox>
-  </group>;
+  return (
+    <group position={[5.55, 0, -8.53]}>
+      <RoundedBox args={[4.2, 0.68, 1.02]} radius={0.18} smoothness={3} position={[0, 0.5, 0]} castShadow>
+        <meshStandardMaterial color="#7d6a8a" roughness={0.9} /><Edges color="#b7a3c2" threshold={28} lineWidth={0.8} />
+      </RoundedBox>
+      <RoundedBox args={[0.36, 1.55, 1.02]} radius={0.12} smoothness={3} position={[-1.92, 1.02, 0]} castShadow><meshStandardMaterial color="#7d6a8a" /></RoundedBox>
+      <RoundedBox args={[0.36, 1.55, 1.02]} radius={0.12} smoothness={3} position={[1.92, 1.02, 0]} castShadow><meshStandardMaterial color="#7d6a8a" /></RoundedBox>
+      <RoundedBox args={[3.15, 0.68, 0.18]} radius={0.08} smoothness={2} position={[0, 1.04, -0.4]}><meshStandardMaterial color="#87728f" /></RoundedBox>
+    </group>
+  );
 }
 
 function VendingMachine({ position }: { position: [number, number, number] }) {
   const mat = useRef<THREE.MeshStandardMaterial>(null);
-  useFrame((state) => { if (mat.current) mat.current.emissiveIntensity = 0.25 + Math.sin(state.clock.elapsedTime * 3) * 0.07; });
-  return <group position={position}>
-    <RoundedBox args={[1.02, 2.50, 0.78]} radius={0.08} smoothness={2} castShadow><meshStandardMaterial color="#2e3740" roughness={0.40}/></RoundedBox>
-    <mesh position={[0, 0.28, 0.40]}><boxGeometry args={[0.76, 1.00, 0.03]} /><meshStandardMaterial ref={mat} color="#152a33" emissive="#2d6d82" roughness={0.22}/></mesh>
-    {[-0.24, 0, 0.24].map((x, i) => <mesh key={i} position={[x, -0.65, 0.41]}><boxGeometry args={[0.14, 0.18, 0.04]}/><meshStandardMaterial color={["#ed7f84","#efc867","#6bc991"][i]}/></mesh>)}
-    <Html center position={[0, 1.55, 0.16]} distanceFactor={14}><div className="prop-label">SNACKS</div></Html>
-  </group>;
+  useFrame((s) => { if (mat.current) mat.current.emissiveIntensity = 0.3 + Math.sin(s.clock.elapsedTime * 3) * 0.07; });
+  return (
+    <group position={[position[0], position[1] + 1.25, position[2]]}>
+      <RoundedBox args={[1.02, 2.5, 0.78]} radius={0.08} smoothness={2} castShadow><meshStandardMaterial color="#35414c" roughness={0.4} /></RoundedBox>
+      <mesh position={[0, 0.28, 0.4]}><boxGeometry args={[0.76, 1.0, 0.03]} /><meshStandardMaterial ref={mat} color="#152a33" emissive="#2d6d82" roughness={0.22} /></mesh>
+      {[-0.24, 0, 0.24].map((x, i) => <mesh key={i} position={[x, -0.65, 0.41]}><boxGeometry args={[0.14, 0.18, 0.04]} /><meshStandardMaterial color={["#ed7f84", "#efc867", "#6bc991"][i]} /></mesh>)}
+      <Html center position={[0, 1.55, 0.16]} distanceFactor={14} style={{ pointerEvents: "none" }}><div className="prop-label">SNACKS</div></Html>
+    </group>
+  );
 }
 
 function Beanbag({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh scale={[1.0, 0.72, 1.0]} castShadow><sphereGeometry args={[0.74, 16, 10]}/><meshStandardMaterial color="#68749b" roughness={0.95}/></mesh></group>;
+  return <mesh position={position} scale={[1, 0.72, 1]} castShadow><sphereGeometry args={[0.74, 16, 10]} /><meshStandardMaterial color="#7f8bb3" roughness={0.95} /></mesh>;
 }
 
 function CoffeeTable({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh position={[0, 0.34, 0]} castShadow><cylinderGeometry args={[0.72,0.70,0.10,12]} /><meshStandardMaterial color="#684b37" roughness={0.82}/></mesh><mesh position={[0,0.12,0]}><cylinderGeometry args={[0.10,0.14,0.43,10]} /><meshStandardMaterial color="#4c3325"/></mesh></group>;
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.34, 0]} castShadow><cylinderGeometry args={[0.5, 0.48, 0.1, 14]} /><meshStandardMaterial color="#8a6a52" roughness={0.8} /></mesh>
+      <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.08, 0.12, 0.3, 10]} /><meshStandardMaterial color="#5c4233" /></mesh>
+    </group>
+  );
 }
 
 function Plant({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
-  return <group position={position} scale={scale}><mesh castShadow><cylinderGeometry args={[0.34,0.42,0.48,10]} /><meshStandardMaterial color="#a66f47" roughness={0.96}/></mesh>{[-0.18,0,0.18].map((x,i)=><mesh key={i} position={[x,0.72,0.02]} rotation={[0,0,(i-1)*0.25]} castShadow><sphereGeometry args={[0.23,0.23,0.52,12]} /><meshStandardMaterial color={["#63b579","#4aa66b","#7ac78a"][i]}/></mesh>)}</group>;
+  return (
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.24, 0]} castShadow><cylinderGeometry args={[0.34, 0.26, 0.48, 10]} /><meshStandardMaterial color="#b97c52" roughness={0.95} /></mesh>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <mesh key={i} position={[Math.cos(i * 1.26) * 0.16, 0.75, Math.sin(i * 1.26) * 0.16]} rotation={[Math.sin(i * 1.26) * 0.4, 0, -Math.cos(i * 1.26) * 0.4]} castShadow>
+          <coneGeometry args={[0.16, 0.7, 6]} /><meshStandardMaterial color={["#63b579", "#4aa66b", "#7ac78a", "#58ae72", "#6cbd82"][i]} />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
 function Shelf({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh castShadow><boxGeometry args={[1.40,3.10,0.56]}/><meshStandardMaterial color="#513c2d" roughness={0.86}/></mesh>{[0.82,0.05,-0.72].map(y=><mesh key={y} position={[0,y,0.31]}><boxGeometry args={[1.28,0.10,0.08]}/><meshStandardMaterial color="#75533a"/></mesh>)}{[-0.36,0.02,0.36].map((x,i)=><mesh key={i} position={[x,0.42,0.35]}><boxGeometry args={[0.18,0.36,0.10]}/><meshStandardMaterial color={["#eab45b","#70b8df","#d67faa"][i]}/></mesh>)}</group>;
+  return (
+    <group position={[position[0], position[1] + 1.55, position[2]]}>
+      <mesh castShadow><boxGeometry args={[1.4, 3.1, 0.56]} /><meshStandardMaterial color="#6a5039" roughness={0.85} /></mesh>
+      {[0.82, 0.05, -0.72].map((y) => <mesh key={y} position={[0, y, 0.31]}><boxGeometry args={[1.28, 0.1, 0.08]} /><meshStandardMaterial color="#8d6a4a" /></mesh>)}
+      {[-0.36, 0.02, 0.36].map((x, i) => <mesh key={i} position={[x, 0.42, 0.35]}><boxGeometry args={[0.18, 0.36, 0.1]} /><meshStandardMaterial color={["#eab45b", "#70b8df", "#d67faa"][i]} /></mesh>)}
+    </group>
+  );
 }
 
 function Printer({ position }: { position: [number, number, number] }) {
-  return <group position={position}><RoundedBox args={[1.05,0.82,0.80]} radius={0.08} smoothness={2} castShadow><meshStandardMaterial color="#4b555e" roughness={0.55}/></RoundedBox><mesh position={[0,0.43,0.04]}><boxGeometry args={[0.74,0.05,0.45]}/><meshStandardMaterial color="#ebeff2"/></mesh></group>;
+  return (
+    <group position={[position[0], position[1] + 0.41, position[2]]}>
+      <RoundedBox args={[1.05, 0.82, 0.8]} radius={0.08} smoothness={2} castShadow><meshStandardMaterial color="#5a656f" roughness={0.55} /></RoundedBox>
+      <mesh position={[0, 0.43, 0.04]}><boxGeometry args={[0.74, 0.05, 0.45]} /><meshStandardMaterial color="#ebeff2" /></mesh>
+    </group>
+  );
 }
 
 function ServerRack({ position }: { position: [number, number, number] }) {
   const mat = useRef<THREE.MeshStandardMaterial>(null);
-  useFrame((state)=>{if(mat.current)mat.current.emissiveIntensity=.10+Math.sin(state.clock.elapsedTime*5)*.06});
-  return <group position={position}><RoundedBox args={[1.15,2.15,0.76]} radius={0.06} smoothness={2} castShadow><meshStandardMaterial color="#232b33" roughness={0.55}/></RoundedBox>{[-0.50,0,0.50].map(y=><mesh key={y} position={[0,y,0.40]}><boxGeometry args={[0.75,0.25,0.02]}/><meshStandardMaterial ref={y===0?mat:undefined} color="#1e3038" emissive="#58d7ff"/></mesh>)}</group>;
+  useFrame((s) => { if (mat.current) mat.current.emissiveIntensity = 0.15 + Math.sin(s.clock.elapsedTime * 5) * 0.08; });
+  return (
+    <group position={[position[0], position[1] + 1.08, position[2]]}>
+      <RoundedBox args={[1.15, 2.15, 0.76]} radius={0.06} smoothness={2} castShadow><meshStandardMaterial color="#2e3842" roughness={0.55} /></RoundedBox>
+      {[-0.5, 0, 0.5].map((y) => <mesh key={y} position={[0, y, 0.4]}><boxGeometry args={[0.75, 0.25, 0.02]} /><meshStandardMaterial ref={y === 0 ? mat : undefined} color="#1e3038" emissive="#58d7ff" /></mesh>)}
+    </group>
+  );
 }
 
 function WallBoard() {
-  return <group position={OFFICE_CONFIG.decor.board}>
-    <RoundedBox args={[5.1,2.25,0.12]} radius={0.05} smoothness={2} castShadow><meshStandardMaterial color="#232a32" roughness={0.48}/></RoundedBox>
-    <Html center position={[0,0,0.08]} distanceFactor={12}>
-      <div className="worldBoard">
-        <div className="wbHead">TODAY'S PIPELINE</div>
-        <div className="wbRow"><span>Research</span><b>✓</b></div>
-        <div className="wbRow"><span>Script</span><b>✓</b></div>
-        <div className="wbRow"><span>Scenes</span><b>12/30</b></div>
-        <div className="wbState">PRODUCTION ACTIVE</div>
-      </div>
-    </Html>
-  </group>;
+  return (
+    <group position={C.decor.board}>
+      <RoundedBox args={[5.1, 2.25, 0.12]} radius={0.05} smoothness={2} castShadow><meshStandardMaterial color="#232a32" roughness={0.48} /></RoundedBox>
+      <Html center position={[0, 0, 0.08]} distanceFactor={12} style={{ pointerEvents: "none" }}>
+        <div className="worldBoard">
+          <div className="wbHead">TODAY'S PIPELINE</div>
+          <div className="wbRow"><span>Research</span><b>✓</b></div>
+          <div className="wbRow"><span>Script</span><b>✓</b></div>
+          <div className="wbRow"><span>Scenes</span><b>12/30</b></div>
+          <div className="wbState">PRODUCTION ACTIVE</div>
+        </div>
+      </Html>
+    </group>
+  );
 }
 
 function Door() {
-  const [x, y, z] = OFFICE_CONFIG.navigation.doorPosition;
-  return <group position={[x, 1.5, z]} rotation={[0, -Math.PI / 2, 0]}><mesh castShadow><boxGeometry args={[2.1,3.0,0.16]}/><meshStandardMaterial color="#6b4f3b" roughness={0.78}/></mesh><mesh position={[0,0,0.11]}><boxGeometry args={[1.72,2.55,0.02]}/><meshStandardMaterial color="#a87953"/></mesh><mesh position={[0.60,-0.18,0.17]}><sphereGeometry args={[0.06,10,10]}/><meshStandardMaterial color="#e8c16c"/></mesh></group>;
+  const [x, , z] = C.navigation.doorPosition;
+  return (
+    <group position={[x, 1.5, z]} rotation={[0, -Math.PI / 2, 0]}>
+      <mesh castShadow><boxGeometry args={[2.1, 3.0, 0.16]} /><meshStandardMaterial color="#7d5f49" roughness={0.78} /></mesh>
+      <mesh position={[0, 0, 0.11]}><boxGeometry args={[1.72, 2.55, 0.02]} /><meshStandardMaterial color="#b98a62" /></mesh>
+      <mesh position={[0.6, -0.18, 0.17]}><sphereGeometry args={[0.06, 10, 10]} /><meshStandardMaterial color="#e8c16c" /></mesh>
+    </group>
+  );
 }
 
 function ColliderDebug() {
   const colliders = useMemo(() => colliderList(), []);
-  return <group>
-    {colliders.map((c) => {
-      const w = c.maxX-c.minX;
-      const d = c.maxZ-c.minZ;
-      return <mesh key={c.id} position={[(c.minX+c.maxX)/2,0.035,(c.minZ+c.maxZ)/2]} rotation={[-Math.PI/2,0,0]}>
-        <planeGeometry args={[w,d]}/>
-        <meshBasicMaterial color="#ff405d" transparent opacity={0.18} depthWrite={false} wireframe/>
-      </mesh>;
-    })}
-  </group>;
+  return (
+    <group>
+      {colliders.map((c) => (
+        <mesh key={c.id} position={[(c.minX + c.maxX) / 2, 0.035, (c.minZ + c.maxZ) / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[c.maxX - c.minX, c.maxZ - c.minZ]} />
+          <meshBasicMaterial color="#ff405d" transparent opacity={0.18} depthWrite={false} wireframe />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
-function WorkerCharacter({
-  person,
-  workerIndex,
-  selected,
-  running,
-  globalResting,
-  labelLane,
-  debug,
-  hovered,
-  registerHitbox,
-}: {
-  person: Person;
-  workerIndex: number;
-  selected: boolean;
-  running: boolean;
-  globalResting: boolean;
-  labelLane: number;
-  debug: boolean;
-  hovered: boolean;
-  registerHitbox: (id: string, object: THREE.Object3D | null) => void;
+/* ---------- character ---------- */
+function WorkerCharacter({ person, workerIndex, selected, running, globalResting, debug, hovered, registerHitbox }: {
+  person: Person; workerIndex: number; selected: boolean; running: boolean; globalResting: boolean;
+  debug: boolean; hovered: boolean; registerHitbox: (id: string, o: THREE.Object3D | null) => void;
 }) {
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
@@ -828,8 +711,12 @@ function WorkerCharacter({
   const chair = useRef<THREE.Group>(null);
   const armL = useRef<THREE.Group>(null);
   const armR = useRef<THREE.Group>(null);
+  const elbowL = useRef<THREE.Group>(null);
+  const elbowR = useRef<THREE.Group>(null);
   const legL = useRef<THREE.Group>(null);
   const legR = useRef<THREE.Group>(null);
+  const kneeL = useRef<THREE.Group>(null);
+  const kneeR = useRef<THREE.Group>(null);
   const label = useRef<HTMLDivElement>(null);
   const ring = useRef<THREE.Mesh>(null);
   const hitbox = useRef<THREE.Mesh>(null);
@@ -840,176 +727,131 @@ function WorkerCharacter({
   }, [person.id, registerHitbox]);
 
   const random = useMemo(() => seededRandom((workerIndex + 13) * 9176), [workerIndex]);
-  const speed = useMemo(
-    () => 1 - OFFICE_CONFIG.movement.speedVariance + random() * OFFICE_CONFIG.movement.speedVariance * 2,
-    [random],
-  );
+  const speed = useMemo(() => 1 - C.movement.speedVariance + random() * C.movement.speedVariance * 2, [random]);
   const mode = useRef<Mode>("WORKING");
   const modeTime = useRef(0);
-  const micro = useRef<{type: MicroAction; started: number; duration: number; next: number}>({
-    type: "NONE",
-    started: 0,
-    duration: 0,
-    next: 3 + random() * 5,
-  });
-  const plan = useRef<{spot: BreakSpotId; duration: number; limit: boolean} | null>(null);
-  const route = useRef<{curve: THREE.CatmullRomCurve3; length: number} | null>(null);
+  const micro = useRef<{ type: MicroAction; started: number; duration: number; next: number }>({ type: "NONE", started: 0, duration: 0, next: 3 + random() * 5 });
+  const plan = useRef<{ spot: BreakSpotId; duration: number; limit: boolean } | null>(null);
+  const route = useRef<{ curve: THREE.CatmullRomCurve3; length: number } | null>(null);
   const distance = useRef(0);
+  const pose = useRef<Pose>({ ...STAND });
+  const tmp = useMemo(() => new THREE.Vector3(), []);
 
   const seat = useMemo(() => getSeatTransform(DESKS[person.id]), [person.id]);
   const home = useMemo(() => new THREE.Vector3(...seat.seatPosition), [seat]);
   const chairHome = useMemo(() => new THREE.Vector3(...seat.chairPosition), [seat]);
+  const pulledSeat = useMemo(() => new THREE.Vector3(...seat.pulledSeatPosition), [seat]);
   const pulledChair = useMemo(() => new THREE.Vector3(...seat.pulledChairPosition), [seat]);
   const approach = useMemo(() => new THREE.Vector3(...seat.approachPosition), [seat]);
 
-
-  useFrame((state, delta) => {
-    if (!root.current || !body.current || !head.current || !chair.current) return;
+  useFrame((state, rawDelta) => {
+    const r = root.current, b = body.current, h = head.current, c = chair.current;
+    if (!r || !b || !h || !c || !armL.current || !armR.current || !elbowL.current || !elbowR.current ||
+        !legL.current || !legR.current || !kneeL.current || !kneeR.current) return;
+    const delta = Math.min(rawDelta, 0.05);
     const elapsed = state.clock.elapsedTime;
-    const external = person.state;
-
+    const ext = person.state;
     modeTime.current += delta;
 
-    const shouldLimit = isLimitState(external);
+    const shouldLimit = isLimitState(ext);
+    const away = mode.current === "WALK" || mode.current === "ARRIVE" || mode.current === "ACTIVITY";
 
-    // Rest/stop is a hard movement boundary: an agent already away from the
-    // desk must finish its return path instead of remaining stranded in the lounge.
-    if ((globalResting || !running) && mode.current !== "WORKING" && mode.current !== "SIT_DOWN" && !shouldLimit) {
+    const goHome = () => {
+      const spot = plan.current?.spot ?? "window";
       releaseBreakSpot(person.id);
-      route.current = buildReturnCurve(root.current.position.clone(), person.id);
+      route.current = buildRoute(r.position.clone(), person.id, spot, true);
       distance.current = 0;
       mode.current = "WALK_BACK";
       modeTime.current = 0;
       plan.current = null;
-    }
+    };
 
-    const breakPlan = globalResting || !running
-      ? null
-      : getBreakPlan(workerIndex, elapsed, external, random);
+    if ((globalResting || !running) && away && !shouldLimit) goHome();
+    if (!shouldLimit && plan.current?.limit && away) goHome();
+
+    const breakPlan = globalResting || !running ? null : getBreakPlan(workerIndex, elapsed, ext, random);
 
     if (shouldLimit && mode.current === "WORKING" && !plan.current) {
-      const reserved = reserveBreakSpot(person.id, breakPlan?.preferred ?? "window");
-      if (reserved) {
-        plan.current = { spot: reserved, duration: Number.POSITIVE_INFINITY, limit: true };
-        route.current = buildWalkCurve(root.current.position.clone(), reserved);
-        distance.current = 0;
-        mode.current = "ANTICIPATE";
-        modeTime.current = 0;
-      }
+      const spot = reserveBreakSpot(person.id, breakPlan?.preferred ?? chooseBreakSpot(workerIndex, 0), true);
+      if (spot) { plan.current = { spot, duration: Infinity, limit: true }; mode.current = "ANTICIPATE"; modeTime.current = 0; }
     }
-
-    if (!shouldLimit && plan.current?.limit) {
-      const spot = plan.current.spot;
-      releaseBreakSpot(person.id);
-      route.current = buildReturnCurve(root.current.position.clone(), person.id);
-      distance.current = 0;
-      mode.current = "WALK_BACK";
-      modeTime.current = 0;
-      plan.current = null;
-    }
-
-    if (
-      running &&
-      breakPlan &&
-      person.id !== selected &&
-      !shouldLimit &&
-      mode.current === "WORKING" &&
-      !plan.current
-    ) {
-      const reserved = reserveBreakSpot(person.id, breakPlan.preferred);
-      if (reserved) {
-        plan.current = { spot: reserved, duration: breakPlan.duration, limit: false };
-        route.current = buildWalkCurve(root.current.position.clone(), reserved);
-        distance.current = 0;
-        mode.current = "ANTICIPATE";
-        modeTime.current = 0;
-      }
+    if (running && !selected && breakPlan && !shouldLimit && mode.current === "WORKING" && !plan.current) {
+      const spot = reserveBreakSpot(person.id, breakPlan.preferred, false);
+      if (spot) { plan.current = { spot, duration: breakPlan.duration, limit: false }; mode.current = "ANTICIPATE"; modeTime.current = 0; }
     }
 
     const m = mode.current;
+    const p = pose.current;
+    Object.assign(p, STAND);
+    const M = C.movement;
 
     if (m === "WORKING") {
-      animateWorking(
-        body.current,
-        head.current,
-        armL.current,
-        armR.current,
-        legL.current,
-        legR.current,
-        elapsed,
-        delta,
-        workerIndex,
-        micro.current,
-        isIdleState(external),
-        random,
-      );
-      root.current.position.x = damp(root.current.position.x, home.x, OFFICE_CONFIG.movement.positionDamping, delta);
-      root.current.position.z = damp(root.current.position.z, home.z, OFFICE_CONFIG.movement.positionDamping, delta);
-      root.current.rotation.y = damp(root.current.rotation.y, seat.rotationY, OFFICE_CONFIG.movement.turnDamping, delta);
-      chair.current.position.x = damp(chair.current.position.x, chairHome.x, 10, delta);
-      chair.current.position.z = damp(chair.current.position.z, chairHome.z, 10, delta);
-      chair.current.rotation.y = damp(chair.current.rotation.y, seat.rotationY, 9, delta);
+      workingPose(p, elapsed, workerIndex, micro.current, isIdleState(ext), random);
+      r.position.x = damp(r.position.x, home.x, M.positionDamping, delta);
+      r.position.z = damp(r.position.z, home.z, M.positionDamping, delta);
+      r.rotation.y = dampAngle(r.rotation.y, seat.rotationY, M.turnDamping, delta);
+      c.position.x = damp(c.position.x, chairHome.x, 10, delta);
+      c.position.z = damp(c.position.z, chairHome.z, 10, delta);
+      c.rotation.y = dampAngle(c.rotation.y, seat.rotationY, 9, delta);
     }
 
     if (m === "ANTICIPATE") {
-      const t = easeInOut(modeTime.current / OFFICE_CONFIG.movement.anticipateDuration);
-      body.current.rotation.x = damp(body.current.rotation.x, 0.10 * Math.sin(t * Math.PI), 9, delta);
-      head.current.rotation.y = damp(head.current.rotation.y, 0.18 * Math.sin(t * Math.PI), 8, delta);
-      chair.current.position.x = damp(chair.current.position.x, chairHome.x, 9, delta);
-      chair.current.position.z = damp(chair.current.position.z, pulledChair.z - 0.16, 10, delta);
-      chair.current.rotation.y = damp(chair.current.rotation.y, seat.rotationY + OFFICE_CONFIG.desks.chairTurn, 8, delta);
-      if (t >= 1) {
-        mode.current = "STAND_UP";
-        modeTime.current = 0;
-      }
+      const u = clamp01(modeTime.current / M.anticipateDuration);
+      applySit(p, 1, C.rig.seatLift);
+      p.headY = 0.3 * Math.sin(u * Math.PI);
+      p.bodyX = -0.04 - 0.1 * Math.sin(u * Math.PI);
+      if (u >= 1) { mode.current = "STAND_UP"; modeTime.current = 0; }
     }
 
+    // Chair rolls back with the character on it, then the character stands and steps sideways out of the row.
     if (m === "STAND_UP") {
-      const t = easeInOut(modeTime.current / OFFICE_CONFIG.movement.standUpDuration);
-      const overshoot = Math.sin(Math.min(1, t) * Math.PI) * 0.07;
-      root.current.position.lerpVectors(home, approach, easeInOut(t));
-      body.current.position.y = damp(body.current.position.y, 0.16 * t + overshoot, 10, delta);
-      body.current.rotation.x = damp(body.current.rotation.x, -0.06 * t, 8, delta);
-      legL.current.rotation.x = damp(legL.current.rotation.x, 0.06 * (1-t), 9, delta);
-      legR.current.rotation.x = damp(legR.current.rotation.x, 0.06 * (1-t), 9, delta);
-      armL.current.rotation.z = damp(armL.current.rotation.z, 0.05, 8, delta);
-      armR.current.rotation.z = damp(armR.current.rotation.z, -0.05, 8, delta);
-      if (t >= 1) {
+      const pr = clamp01(modeTime.current / M.standUpDuration);
+      const k = easeInOut(clamp01(pr / 0.5));
+      const sit = 1 - easeInOut(clamp01((pr - 0.4) / 0.3));
+      const s = easeInOut(clamp01((pr - 0.62) / 0.38));
+      tmp.lerpVectors(home, pulledSeat, k);
+      r.position.lerpVectors(tmp, approach, s);
+      c.position.lerpVectors(chairHome, pulledChair, k);
+      c.rotation.y = seat.rotationY + C.desks.chairTurn * k;
+      r.rotation.y = dampAngle(r.rotation.y, seat.rotationY, 8, delta);
+      applySit(p, sit, C.rig.seatLift);
+      p.bodyX += -0.08 * Math.sin(clamp01((pr - 0.3) / 0.4) * Math.PI);
+      if (pr >= 1 && plan.current) {
+        route.current = buildRoute(approach.clone(), person.id, plan.current.spot, false);
+        distance.current = 0;
         mode.current = "WALK";
         modeTime.current = 0;
       }
     }
 
     if (m === "WALK" || m === "WALK_BACK") {
-      const r = route.current;
-      if (!r) {
+      const rt = route.current;
+      if (!rt) {
         mode.current = m === "WALK" ? "ARRIVE" : "SIT_DOWN";
         modeTime.current = 0;
       } else {
-        const u = clamp01(distance.current / Math.max(r.length, 0.001));
-        const a = OFFICE_CONFIG.movement.accelerationFraction;
-        const d = OFFICE_CONFIG.movement.decelerationFraction;
-        const accel = OFFICE_CONFIG.easing.smoother(clamp01(u / a));
-        const decel = OFFICE_CONFIG.easing.smoother(clamp01((1-u) / d));
-        const speedFactor = Math.max(0.20, Math.min(1, accel * decel));
-        distance.current = Math.min(
-          r.length,
-          distance.current + OFFICE_CONFIG.movement.walkSpeed * speed * speedFactor * delta,
-        );
+        const u = clamp01(distance.current / Math.max(rt.length, 0.001));
+        const accel = C.easing.smoother(clamp01(u / C.walking.accelerationFraction));
+        const decel = C.easing.smoother(clamp01((1 - u) / C.walking.decelerationFraction));
+        const sf = Math.max(0.2, Math.min(1, accel * decel));
+        distance.current = Math.min(rt.length, distance.current + M.walkSpeed * speed * sf * delta);
+        const nu = clamp01(distance.current / Math.max(rt.length, 0.001));
+        const target = rt.curve.getPointAt(nu);
+        const tan = rt.curve.getTangentAt(nu).normalize();
+        r.position.lerp(target, Math.min(1, 11 * delta));
+        // forward is -Z, so heading = atan2(-tx, -tz) (the old atan2(tx, tz) made everyone walk backwards)
+        r.rotation.y = dampAngle(r.rotation.y, Math.atan2(-tan.x, -tan.z), 10, delta);
 
-        const nu = clamp01(distance.current / Math.max(r.length, 0.001));
-        const target = r.curve.getPointAt(nu);
-        const tangent = r.curve.getTangentAt(nu).normalize();
-        root.current.position.lerp(target, Math.min(1, 11 * delta));
-        root.current.rotation.y = damp(root.current.rotation.y, Math.atan2(tangent.x, tangent.z), 10, delta);
-
-        const step = Math.sin(elapsed * OFFICE_CONFIG.walking.strideSpeed + workerIndex * 1.7);
-        legL.current.rotation.x = damp(legL.current.rotation.x, step * OFFICE_CONFIG.walking.footSwing, 15, delta);
-        legR.current.rotation.x = damp(legR.current.rotation.x, -step * OFFICE_CONFIG.walking.footSwing, 15, delta);
-        armL.current.rotation.x = damp(armL.current.rotation.x, -step * OFFICE_CONFIG.walking.armSwing, 15, delta);
-        armR.current.rotation.x = damp(armR.current.rotation.x, step * OFFICE_CONFIG.walking.armSwing, 15, delta);
-        body.current.position.y = damp(body.current.position.y, Math.abs(step) * OFFICE_CONFIG.walking.bobAmplitude, 12, delta);
-        body.current.rotation.x = damp(body.current.rotation.x, OFFICE_CONFIG.walking.lean * tangent.x, 8, delta);
+        const step = Math.sin(elapsed * C.walking.strideSpeed * (0.6 + 0.4 * sf) + workerIndex * 1.7);
+        p.hl = step * C.walking.footSwing;
+        p.hr = -step * C.walking.footSwing;
+        p.kl = -Math.max(0, -step) * 0.9;
+        p.kr = -Math.max(0, step) * 0.9;
+        p.ul = -step * C.walking.armSwing + 0.05;
+        p.ur = step * C.walking.armSwing + 0.05;
+        p.el = p.er = 0.3;
+        p.bodyY = Math.abs(step) * C.walking.bobAmplitude;
+        p.bodyX = -C.walking.lean * sf;
 
         if (nu >= 0.999) {
           route.current = null;
@@ -1020,159 +862,157 @@ function WorkerCharacter({
     }
 
     if (m === "ARRIVE") {
-      const t = easeInOut(modeTime.current / OFFICE_CONFIG.movement.arriveDuration);
-      const spot = BREAK_SPOTS[plan.current?.spot ?? "window"];
-      root.current.rotation.y = damp(root.current.rotation.y, spot.facing, 9, delta);
-      body.current.position.y = damp(body.current.position.y, 0.03 * Math.sin(t * Math.PI), 8, delta);
-      if (t >= 1) {
-        mode.current = "ACTIVITY";
-        modeTime.current = 0;
-      }
+      const u = clamp01(modeTime.current / M.arriveDuration);
+      r.rotation.y = dampAngle(r.rotation.y, BREAK_SPOTS[plan.current?.spot ?? "window"].facing, 9, delta);
+      if (u >= 1) { mode.current = "ACTIVITY"; modeTime.current = 0; }
     }
 
     if (m === "ACTIVITY") {
       const spot = BREAK_SPOTS[plan.current?.spot ?? "window"];
       const t = modeTime.current;
-      root.current.rotation.y = damp(root.current.rotation.y, spot.facing, 8, delta);
-      if (spot.activity === "SOFA") {
-        body.current.position.y = damp(body.current.position.y, -0.14, 8, delta);
-        body.current.rotation.x = damp(body.current.rotation.x, -0.08, 7, delta);
-        head.current.rotation.y = damp(head.current.rotation.y, Math.sin(t * 0.7 + workerIndex) * 0.18, 5, delta);
-        armL.current.rotation.z = damp(armL.current.rotation.z, 0.24 + Math.sin(t) * 0.04, 6, delta);
-        armR.current.rotation.z = damp(armR.current.rotation.z, -0.24 + Math.sin(t * 0.9) * 0.04, 6, delta);
+      r.rotation.y = dampAngle(r.rotation.y, spot.facing, 8, delta);
+      if (spot.activity === "SIT") {
+        applySit(p, 1, spot.lift);
+        p.bodyX = 0.12; // lean back into the cushion
+        p.ul = p.ur = 0.4; p.el = p.er = 0.9;
+        p.headY = Math.sin(t * 0.7 + workerIndex) * 0.18;
+        if (plan.current?.limit) { p.headX = 0.3; p.headY = 0; } // dozing
       } else if (spot.activity === "SNACK") {
-        body.current.position.y = damp(body.current.position.y, 0, 8, delta);
-        armL.current.rotation.z = damp(armL.current.rotation.z, t < 1.0 ? 0.62 : 0.18, 7, delta);
-        armR.current.rotation.z = damp(armR.current.rotation.z, t > 1.0 && t < 2.4 ? -0.62 : -0.12, 7, delta);
-        head.current.rotation.x = damp(head.current.rotation.x, t > 1.2 ? 0.10 : 0, 6, delta);
+        if (t < 1.0) { p.ur = 1.3; p.er = 0.2; }
+        else if (t < 2.4) { p.bodyX = -0.12; p.ur = 0.9; p.er = 0.6; p.headX = 0.15; }
+        else { p.ul = 1.9 + Math.sin(t * 3) * 0.05; p.el = 1.3; p.headX = -0.1; }
       } else {
-        body.current.position.y = damp(body.current.position.y, 0, 7, delta);
-        head.current.rotation.y = damp(head.current.rotation.y, Math.sin(t * 0.45 + workerIndex) * 0.25, 4, delta);
-        armL.current.rotation.z = damp(armL.current.rotation.z, 0.14, 4, delta);
-        armR.current.rotation.z = damp(armR.current.rotation.z, -0.14, 4, delta);
+        p.headY = Math.sin(t * 0.45 + workerIndex) * 0.3;
+        p.ulz = -0.1; p.urz = 0.1;
+        if (plan.current?.limit) { p.headX = 0.25; p.ul = p.ur = 0.9; p.el = p.er = 1.5; } // arms folded
       }
-
-      if (plan.current?.limit !== true && modeTime.current >= (plan.current?.duration ?? 7)) {
-        releaseBreakSpot(person.id);
-        route.current = buildReturnCurve(root.current.position.clone(), person.id);
-        distance.current = 0;
-        mode.current = "WALK_BACK";
-        modeTime.current = 0;
-      }
+      if (plan.current?.limit !== true && t >= (plan.current?.duration ?? 7)) goHome();
     }
 
     if (m === "SIT_DOWN") {
-      const t = easeInOut(modeTime.current / OFFICE_CONFIG.movement.sitDownDuration);
-      const tt = easeInOut(t);
-      root.current.position.lerpVectors(approach, home, tt);
-      body.current.position.y = damp(body.current.position.y, -0.12 + Math.sin(tt * Math.PI) * 0.035, 10, delta);
-      body.current.rotation.x = damp(body.current.rotation.x, 0.06, 8, delta);
-      legL.current.rotation.x = damp(legL.current.rotation.x, 0.55 * (1-tt), 9, delta);
-      legR.current.rotation.x = damp(legR.current.rotation.x, 0.55 * (1-tt), 9, delta);
-      armL.current.rotation.z = damp(armL.current.rotation.z, 0.16, 7, delta);
-      armR.current.rotation.z = damp(armR.current.rotation.z, -0.16, 7, delta);
-      chair.current.position.x = damp(chair.current.position.x, chairHome.x, 9, delta);
-      chair.current.position.z = damp(chair.current.position.z, chairHome.z, 9, delta);
-      chair.current.rotation.y = damp(chair.current.rotation.y, seat.rotationY, 8, delta);
-      root.current.rotation.y = damp(root.current.rotation.y, seat.rotationY, 9, delta);
-      if (t >= 1) {
+      const pr = clamp01(modeTime.current / M.sitDownDuration);
+      const s = 1 - easeInOut(clamp01(pr / 0.3));
+      const sit = easeInOut(clamp01((pr - 0.3) / 0.3));
+      const k = 1 - easeInOut(clamp01((pr - 0.55) / 0.45));
+      tmp.lerpVectors(home, pulledSeat, k);
+      r.position.lerpVectors(tmp, approach, s);
+      c.position.lerpVectors(chairHome, pulledChair, k);
+      c.rotation.y = seat.rotationY + C.desks.chairTurn * k;
+      r.rotation.y = dampAngle(r.rotation.y, seat.rotationY, 9, delta);
+      applySit(p, sit, C.rig.seatLift);
+      if (pr >= 1) {
         mode.current = "WORKING";
         modeTime.current = 0;
-        micro.current.next = elapsed + THREE.MathUtils.lerp(4, 10, random());
-        plan.current = plan.current?.limit ? plan.current : null;
+        micro.current.next = elapsed + lerp(4, 10, random());
       }
     }
 
-    if (m === "WALK_BACK" && plan.current?.limit) {
-      // Limit reset path lands at the approach point, then uses SIT_DOWN.
-      // The transition above handles the actual seat pull-in.
-    }
+    // One place applies the pose to the rig.
+    const rate = m === "WALK" || m === "WALK_BACK" ? 14 : m === "STAND_UP" || m === "SIT_DOWN" ? 16 : 9;
+    b.position.y = damp(b.position.y, p.bodyY, rate, delta);
+    b.position.x = damp(b.position.x, p.bodyPX, rate, delta);
+    b.rotation.x = damp(b.rotation.x, p.bodyX, rate, delta);
+    h.rotation.y = damp(h.rotation.y, p.headY, 7, delta);
+    h.rotation.x = damp(h.rotation.x, p.headX, 7, delta);
+    armL.current.rotation.x = damp(armL.current.rotation.x, p.ul, rate, delta);
+    armR.current.rotation.x = damp(armR.current.rotation.x, p.ur, rate, delta);
+    armL.current.rotation.z = damp(armL.current.rotation.z, p.ulz, rate, delta);
+    armR.current.rotation.z = damp(armR.current.rotation.z, p.urz, rate, delta);
+    elbowL.current.rotation.x = damp(elbowL.current.rotation.x, p.el, rate, delta);
+    elbowR.current.rotation.x = damp(elbowR.current.rotation.x, p.er, rate, delta);
+    legL.current.rotation.x = damp(legL.current.rotation.x, p.hl, rate, delta);
+    legR.current.rotation.x = damp(legR.current.rotation.x, p.hr, rate, delta);
+    kneeL.current.rotation.x = damp(kneeL.current.rotation.x, p.kl, rate, delta);
+    kneeR.current.rotation.x = damp(kneeR.current.rotation.x, p.kr, rate, delta);
 
-    const statusText = isLimitState(external)
+    const statusText = isLimitState(ext)
       ? (m === "ACTIVITY" ? "limit" : "walking")
-      : globalResting
-        ? "resting"
-        : !running
-          ? "idle"
-          : m === "WORKING"
-            ? "working"
-            : (m === "ACTIVITY" || m === "ARRIVE")
-              ? "break"
-              : "walking";
-
+      : globalResting ? "resting"
+      : !running ? "idle"
+      : m === "WORKING" ? "working"
+      : m === "ACTIVITY" || m === "ARRIVE" ? "break"
+      : "walking";
     if (label.current) {
       const text = label.current.querySelector(".state-text");
       const dot = label.current.querySelector(".state-dot") as HTMLElement | null;
       if (text) text.textContent = statusText;
-      if (dot) {
-        dot.style.background =
-          statusText === "working" ? person.color :
-          statusText === "walking" ? "#78a5ff" :
-          statusText === "limit" ? "#ff5d76" : "#ffbd61";
-      }
+      if (dot) dot.style.background = statusText === "working" ? person.color : statusText === "walking" ? "#78a5ff" : statusText === "limit" ? "#ff5d76" : "#ffbd61";
     }
-
     if (ring.current) ring.current.visible = selected;
   });
+
+  const robot = person.id === "gpt";
+  const skin = robot ? "#d9e7ed" : "#efc2a5";
+  const legColor = "#303b47";
+  const edge = hovered || selected ? "#ffffff" : undefined;
 
   return (
     <group>
       <OfficeChair refObj={chair} position={chairHome} rotationY={seat.rotationY} />
       <group ref={root} position={home} rotation={[0, seat.rotationY, 0]}>
-        <mesh
-          ref={hitbox}
-          userData={{ workerId: person.id }}
-          position={[0, 1.10, 0]}
-          visible
-          renderOrder={999}
-        >
-          <boxGeometry args={[1.12, 2.38, 0.88]} />
+        <mesh ref={hitbox} userData={{ workerId: person.id }} position={[0, 1.2, 0]} renderOrder={999}>
+          <boxGeometry args={[1.3, 2.5, 1.0]} />
           <meshBasicMaterial transparent opacity={debug ? 0.15 : 0} depthWrite={false} wireframe />
         </mesh>
+
         <group ref={body}>
-          <RoundedBox args={[0.86, 0.74, 0.60]} radius={0.11} smoothness={3} position={[0, 1.04, 0]} castShadow>
-            <meshStandardMaterial color={person.color} roughness={0.68} />
-            <Edges color={hovered || selected ? "#ffffff" : person.color} threshold={25} lineWidth={selected ? 1.8 : hovered ? 1.35 : 0.9} />
-          </RoundedBox>
-          <group ref={head} position={[0,0,0]}>
-            <RoundedBox args={[0.66,0.70,0.64]} radius={0.17} smoothness={4} position={[0,1.76,0]} castShadow>
-              <meshStandardMaterial color={person.id === "gpt" ? "#d9e7ed" : "#efc2a5"} roughness={0.78}/>
-              <Edges color={hovered || selected ? "#ffffff" : "#eff5ff"} threshold={32} lineWidth={selected ? 1.8 : hovered ? 1.35 : 0.8}/>
+          {/* upper body, lifted over the long legs */}
+          <group position={[0, C.rig.upperLift, 0]}>
+            <RoundedBox args={[0.86, 0.74, 0.6]} radius={0.11} smoothness={3} position={[0, 1.04, 0]} castShadow>
+              <meshStandardMaterial color={person.color} roughness={0.68} />
+              <Edges color={edge ?? person.color} threshold={25} lineWidth={selected ? 1.8 : hovered ? 1.35 : 0.9} />
             </RoundedBox>
-            <Hair id={person.id}/>
-            <Face robot={person.id === "gpt"}/>
-          </group>
-          <mesh position={[0,1.36,0]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[0.22,0.045,8,16,.9*Math.PI]}/><meshStandardMaterial color={person.id === "dira" ? "#d5bff2" : "#e7edf1"}/></mesh>
-          <Accessories id={person.id}/>
+            <mesh position={[0, 1.36, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.22, 0.045, 8, 16, 0.9 * Math.PI]} /><meshStandardMaterial color={person.id === "dira" ? "#d5bff2" : "#e7edf1"} /></mesh>
+            <Accessories id={person.id} />
 
-          <group ref={armL} position={[-0.49,1.06,0]}>
-            <mesh position={[0,-0.18,-0.10]} castShadow><RoundedBox args={[0.19,0.56,0.19]} radius={0.07} smoothness={2}><meshStandardMaterial color={person.color}/></RoundedBox></mesh>
-            <Hand robot={person.id === "gpt"}/>
-          </group>
-          <group ref={armR} position={[0.49,1.06,0]}>
-            <mesh position={[0,-0.18,-0.10]} castShadow><RoundedBox args={[0.19,0.56,0.19]} radius={0.07} smoothness={2}><meshStandardMaterial color={person.color}/></RoundedBox></mesh>
-            <Hand robot={person.id === "gpt"}/>
+            {/* head pivots at the neck */}
+            <group ref={head} position={[0, 1.42, 0]}>
+              <group position={[0, -1.42, 0]}>
+                <RoundedBox args={[0.66, 0.7, 0.64]} radius={0.17} smoothness={4} position={[0, 1.76, 0]} castShadow>
+                  <meshStandardMaterial color={skin} roughness={0.78} />
+                  <Edges color={edge ?? "#eff5ff"} threshold={32} lineWidth={selected ? 1.8 : hovered ? 1.35 : 0.8} />
+                </RoundedBox>
+                <Hair id={person.id} />
+                <Face robot={robot} />
+                {(person.id === "rhea" || person.id === "dira" || person.id === "vox") && (
+                  <Headset tone={person.id === "dira" ? "#c58aff" : person.id === "vox" ? "#ff8b94" : "#74a7ff"} />
+                )}
+              </group>
+            </group>
+
+            {[{ r: armL, e: elbowL, x: -0.49 }, { r: armR, e: elbowR, x: 0.49 }].map((a) => (
+              <group key={a.x} ref={a.r} position={[a.x, 1.06, 0]}>
+                <RoundedBox args={[0.19, 0.27, 0.19]} radius={0.07} smoothness={2} position={[0, -0.125, 0]} castShadow><meshStandardMaterial color={person.color} /></RoundedBox>
+                <group ref={a.e} position={[0, -0.27, 0]}>
+                  <RoundedBox args={[0.17, 0.27, 0.17]} radius={0.06} smoothness={2} position={[0, -0.125, 0]} castShadow><meshStandardMaterial color={person.color} /></RoundedBox>
+                  <mesh position={[0, -0.3, 0]} castShadow><sphereGeometry args={[0.095, 10, 10]} /><meshStandardMaterial color={robot ? "#d9e7ed" : "#efc1a3"} /></mesh>
+                </group>
+              </group>
+            ))}
           </group>
 
-          <group ref={legL} position={[-0.21,0.62,0]}>
-            <mesh position={[0,-0.27,-0.02]} castShadow><RoundedBox args={[0.21,0.70,0.25]} radius={0.06} smoothness={2}><meshStandardMaterial color="#303b47"/></RoundedBox></mesh>
-          </group>
-          <group ref={legR} position={[0.21,0.62,0]}>
-            <mesh position={[0,-0.27,-0.02]} castShadow><RoundedBox args={[0.21,0.70,0.25]} radius={0.06} smoothness={2}><meshStandardMaterial color="#303b47"/></RoundedBox></mesh>
-          </group>
-          <Shoes />
+          {/* legs: thigh (0.38) + knee + shin (0.52) + shoe */}
+          {[{ r: legL, k: kneeL, x: -0.21 }, { r: legR, k: kneeR, x: 0.21 }].map((l) => (
+            <group key={l.x} ref={l.r} position={[l.x, 0.9, 0]}>
+              <RoundedBox args={[0.21, 0.38, 0.21]} radius={0.06} smoothness={2} position={[0, -0.17, 0]} castShadow><meshStandardMaterial color={legColor} /></RoundedBox>
+              <group ref={l.k} position={[0, -0.38, 0]}>
+                <RoundedBox args={[0.19, 0.52, 0.19]} radius={0.06} smoothness={2} position={[0, -0.26, 0]} castShadow><meshStandardMaterial color={legColor} /></RoundedBox>
+                <mesh position={[0, -0.45, -0.07]} castShadow><boxGeometry args={[0.22, 0.14, 0.36]} /><meshStandardMaterial color="#1e252b" /></mesh>
+              </group>
+            </group>
+          ))}
         </group>
 
-        <mesh ref={ring} position={[0, OFFICE_CONFIG.visual.selectedRingY, 0]} rotation={[-Math.PI/2,0,0]}>
-          <ringGeometry args={[0.92,1.06,40]}/>
-          <meshBasicMaterial color={person.color} transparent opacity={selected ? 0.72 : 0.25} depthWrite={false}/>
+        <mesh ref={ring} position={[0, C.visual.selectedRingY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.92, 1.06, 40]} />
+          <meshBasicMaterial color={person.color} transparent opacity={0.72} depthWrite={false} />
         </mesh>
 
-        <Html center position={[0, OFFICE_CONFIG.visual.labelBaseHeight + labelLane * OFFICE_CONFIG.visual.labelLaneStep + (person.id === "dira" ? 0.34 : 0), 0]} distanceFactor={11}>
-          <div ref={label} className={`tag ${selected ? "sel" : ""} ${hovered ? "hovered" : ""}`}>
+        <Html center position={[0, C.visual.labelBaseHeight, 0]} distanceFactor={11} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+          <div ref={label} className={`tag ${selected ? "sel" : ""} ${hovered ? "hovered" : ""}`} style={{ pointerEvents: "none" }}>
             <b>{person.name}</b>
-            <small>{person.role}</small>
-            <em><i className="state-dot" style={{background:person.color}}/><span className="state-text">working</span></em>
+            <small style={{ display: hovered || selected ? "block" : "none" }}>{person.role}</small>
+            <em><i className="state-dot" style={{ background: person.color }} /><span className="state-text">working</span></em>
           </div>
         </Html>
       </group>
@@ -1180,182 +1020,49 @@ function WorkerCharacter({
   );
 }
 
-function animateWorking(
-  body: THREE.Group,
-  head: THREE.Group,
-  armL: THREE.Group,
-  armR: THREE.Group,
-  legL: THREE.Group,
-  legR: THREE.Group,
-  elapsed: number,
-  delta: number,
-  index: number,
-  micro: { type: MicroAction; started: number; duration: number; next: number },
-  allowed: boolean,
-  random: () => number,
-) {
-  const breathe =
-    Math.sin((elapsed + index * 0.83) * 2 * Math.PI * OFFICE_CONFIG.idle.breathingHz) *
-    OFFICE_CONFIG.idle.breathingAmplitude;
-
-  body.position.y = damp(body.position.y, breathe, 8, delta);
-
-  if (allowed && micro.type === "NONE" && elapsed >= micro.next) {
-    const roll = random();
-    const checks: Array<[number, MicroAction]> = [
-      [OFFICE_CONFIG.idle.probabilities.stretch, "STRETCH"],
-      [OFFICE_CONFIG.idle.probabilities.scratch, "SCRATCH"],
-      [OFFICE_CONFIG.idle.probabilities.drink, "DRINK"],
-      [OFFICE_CONFIG.idle.probabilities.lean, "LEAN"],
-      [OFFICE_CONFIG.idle.probabilities.shift, "SHIFT"],
-      [1, "LOOK"],
-    ];
-
-    let cumulative = 0;
-    let picked: MicroAction = "LOOK";
-    for (const [weight, type] of checks) {
-      cumulative += weight;
-      if (roll <= cumulative) {
-        picked = type;
-        break;
-      }
-    }
-
-    micro.type = picked;
-    micro.started = elapsed;
-    micro.duration = THREE.MathUtils.lerp(0.7, 1.9, random());
-    micro.next =
-      elapsed +
-      THREE.MathUtils.lerp(
-        OFFICE_CONFIG.idle.microMinSeconds,
-        OFFICE_CONFIG.idle.microMaxSeconds,
-        random(),
-      );
-  }
-
-  const active =
-    micro.type !== "NONE" && elapsed - micro.started < micro.duration;
-
-  const progress = active
-    ? easeInOut((elapsed - micro.started) / micro.duration)
-    : 0;
-  const wave = Math.sin(progress * Math.PI);
-
-  let targetHead = 0;
-  let targetBody = 0.035;
-  let leftArm = 0.18;
-  let rightArm = -0.18;
-
-  if (active) {
-    if (micro.type === "LOOK") {
-      targetHead = OFFICE_CONFIG.idle.headTurnAmplitude * wave;
-    } else if (micro.type === "SCRATCH") {
-      leftArm = 0.66 + 0.10 * wave;
-    } else if (micro.type === "DRINK") {
-      rightArm = -0.78;
-    } else if (micro.type === "LEAN") {
-      targetBody = 0.035 - 0.10 * wave;
-    } else if (micro.type === "STRETCH") {
-      leftArm = -0.42 - 0.22 * wave;
-      rightArm = 0.42 + 0.22 * wave;
-      targetBody = 0.02 - 0.04 * wave;
-    }
-  } else if (micro.type !== "NONE") {
-    micro.type = "NONE";
-  }
-
-  head.rotation.y = damp(head.rotation.y, targetHead, 7, delta);
-  head.rotation.x = damp(
-    head.rotation.x,
-    Math.sin(elapsed * 0.65 + index) * OFFICE_CONFIG.idle.headNodAmplitude * 0.18,
-    6,
-    delta,
+function OfficeChair({ refObj, position, rotationY }: { refObj: RefObject<THREE.Group>; position: THREE.Vector3; rotationY: number }) {
+  const W = C.desks.chairWidth, D = C.desks.chairSeatDepth, top = C.desks.chairSeatTop, H = C.desks.chairBackHeight;
+  return (
+    <group ref={refObj} position={position} rotation={[0, rotationY, 0]}>
+      <RoundedBox args={[W, 0.14, D]} radius={0.06} smoothness={2} position={[0, top - 0.07, 0]} castShadow><meshStandardMaterial color="#54657a" roughness={0.75} /></RoundedBox>
+      {/* backrest is on +Z = behind the character */}
+      <RoundedBox args={[W - 0.06, H, 0.14]} radius={0.06} smoothness={2} position={[0, top + 0.1 + H / 2, D / 2 - 0.08]} castShadow><meshStandardMaterial color="#5d6f85" roughness={0.78} /></RoundedBox>
+      <mesh position={[0, 0.22, 0]}><cylinderGeometry args={[0.06, 0.06, 0.4, 8]} /><meshStandardMaterial color="#252b31" /></mesh>
+      <mesh position={[0, 0.03, 0]}><boxGeometry args={[0.8, 0.05, 0.1]} /><meshStandardMaterial color="#252b31" /></mesh>
+      <mesh position={[0, 0.03, 0]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[0.8, 0.05, 0.1]} /><meshStandardMaterial color="#252b31" /></mesh>
+    </group>
   );
-
-  body.rotation.x = damp(body.rotation.x, targetBody, 7, delta);
-
-  const typing =
-    active && micro.type !== "LOOK"
-      ? 0.18
-      : OFFICE_CONFIG.idle.typingAmplitude;
-
-  armL.rotation.z = damp(
-    armL.rotation.z,
-    leftArm +
-      Math.sin(elapsed * OFFICE_CONFIG.idle.typingSpeed + index) * typing,
-    11,
-    delta,
-  );
-  armR.rotation.z = damp(
-    armR.rotation.z,
-    rightArm +
-      Math.sin(elapsed * OFFICE_CONFIG.idle.typingSpeed * 1.13 + index * 1.7) * typing,
-    11,
-    delta,
-  );
-
-  body.position.x = damp(
-    body.position.x,
-    micro.type === "SHIFT" ? 0.10 * wave : 0,
-    9,
-    delta,
-  );
-
-  legL.rotation.x = damp(legL.rotation.x, 0, 8, delta);
-  legR.rotation.x = damp(legR.rotation.x, 0, 8, delta);
-}
-
-function OfficeChair({ refObj, position, rotationY }: {
-  refObj: RefObject<THREE.Group>;
-  position: THREE.Vector3;
-  rotationY: number;
-}) {
-  return <group ref={refObj} position={position} rotation={[0,rotationY,0]}>
-    <RoundedBox args={[OFFICE_CONFIG.desks.chairWidth,0.14,OFFICE_CONFIG.desks.chairSeatDepth]} radius={0.06} smoothness={2} position={[0,0.64,0]} castShadow>
-      <meshStandardMaterial color="#3e4b59" roughness={0.75}/>
-    </RoundedBox>
-    <RoundedBox args={[OFFICE_CONFIG.desks.chairWidth,OFFICE_CONFIG.desks.chairBackHeight,0.16]} radius={0.06} smoothness={2} position={[0,1.17,0.31]} castShadow>
-      <meshStandardMaterial color="#455361" roughness={0.78}/>
-    </RoundedBox>
-    <mesh position={[0,0.26,0]}><cylinderGeometry args={[0.06,0.06,0.55,8]}/><meshStandardMaterial color="#252b31"/></mesh>
-  </group>;
 }
 
 function Hair({ id }: { id: string }) {
-  const color = id === "wri" ? "#7c4a27" : id === "dira" ? "#4a3a62" : id === "gemi" ? "#f1c6e6" : "#28313b";
-  return <mesh position={[0,2.06,0]} castShadow><RoundedBox args={[0.68,0.19,0.63]} radius={0.09} smoothness={2}><meshStandardMaterial color={color} roughness={0.82}/></RoundedBox></mesh>;
+  const color = id === "wri" ? "#8c5830" : id === "dira" ? "#5a4a78" : id === "gemi" ? "#f1c6e6" : "#28313b";
+  return <RoundedBox args={[0.68, 0.19, 0.63]} radius={0.09} smoothness={2} position={[0, 2.06, 0]} castShadow><meshStandardMaterial color={color} roughness={0.82} /></RoundedBox>;
 }
 
 function Face({ robot }: { robot: boolean }) {
-  return robot
-    ? <mesh position={[0,1.74,-0.335]}><boxGeometry args={[0.30,0.085,0.03]}/><meshBasicMaterial color="#55e0ff"/></mesh>
-    : <>
-      <mesh position={[-0.13,1.77,-0.315]}><sphereGeometry args={[0.036,10,10]}/><meshBasicMaterial color="#111"/></mesh>
-      <mesh position={[0.13,1.77,-0.315]}><sphereGeometry args={[0.036,10,10]}/><meshBasicMaterial color="#111"/></mesh>
-      <mesh position={[0,1.66,-0.315]}><boxGeometry args={[0.11,0.024,0.02]}/><meshBasicMaterial color="#7a4b46"/></mesh>
-    </>;
+  return robot ? (
+    <mesh position={[0, 1.74, -0.335]}><boxGeometry args={[0.3, 0.085, 0.03]} /><meshBasicMaterial color="#55e0ff" /></mesh>
+  ) : (
+    <>
+      <mesh position={[-0.13, 1.77, -0.315]}><sphereGeometry args={[0.036, 10, 10]} /><meshBasicMaterial color="#111" /></mesh>
+      <mesh position={[0.13, 1.77, -0.315]}><sphereGeometry args={[0.036, 10, 10]} /><meshBasicMaterial color="#111" /></mesh>
+      <mesh position={[0, 1.66, -0.315]}><boxGeometry args={[0.11, 0.024, 0.02]} /><meshBasicMaterial color="#7a4b46" /></mesh>
+    </>
+  );
 }
 
+// Decorative extras that live on the torso. (Gemi's floating tablet was removed: it hovered over the desk edge.)
 function Accessories({ id }: { id: string }) {
-  if (id === "rhea" || id === "dira" || id === "vox") return <Headset tone={id === "dira" ? "#c58aff" : id === "vox" ? "#ff8b94" : "#74a7ff"} />;
-  if (id === "gemi") return <Tablet color="#66dcae"/>;
-  if (id === "wri") return <mesh position={[0,1.12,0.28]}><boxGeometry args={[0.25,0.05,0.18]}/><meshStandardMaterial color="#7c4a27"/></mesh>;
-  return <mesh position={[0,1.06,0.30]}><boxGeometry args={[0.24,0.14,0.04]}/><meshStandardMaterial color="#65dfff" emissive="#65dfff" emissiveIntensity={0.42}/></mesh>;
+  if (id === "gpt") return <mesh position={[0, 1.06, -0.31]}><boxGeometry args={[0.24, 0.14, 0.04]} /><meshStandardMaterial color="#65dfff" emissive="#65dfff" emissiveIntensity={0.5} /></mesh>;
+  return null;
 }
 
 function Headset({ tone }: { tone: string }) {
-  return <group position={[0,1.98,0]}><mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[0.37,0.032,8,24,Math.PI]}/><meshStandardMaterial color={tone}/></mesh><mesh position={[-0.31,-0.02,-0.02]}><cylinderGeometry args={[0.08,0.08,0.12,12]}/><meshStandardMaterial color={tone}/></mesh><mesh position={[0.31,-0.02,-0.02]}><cylinderGeometry args={[0.08,0.08,0.12,12]}/><meshStandardMaterial color={tone}/></mesh></group>;
+  return (
+    <group position={[0, 1.98, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.37, 0.032, 8, 24, Math.PI]} /><meshStandardMaterial color={tone} /></mesh>
+      <mesh position={[-0.31, -0.02, -0.02]}><cylinderGeometry args={[0.08, 0.08, 0.12, 12]} /><meshStandardMaterial color={tone} /></mesh>
+      <mesh position={[0.31, -0.02, -0.02]}><cylinderGeometry args={[0.08, 0.08, 0.12, 12]} /><meshStandardMaterial color={tone} /></mesh>
+    </group>
+  );
 }
-
-function Tablet({ color }: { color: string }) {
-  return <group position={[0,1.01,-0.40]} rotation={[0.12,0,0]}><RoundedBox args={[0.45,0.06,0.34]} radius={0.04} smoothness={2}><meshStandardMaterial color="#26313b"/></RoundedBox><mesh position={[0,0.036,-0.01]}><boxGeometry args={[0.34,0.012,0.24]}/><meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.24}/></mesh></group>;
-}
-
-function Hand({ robot }: { robot: boolean }) {
-  return <mesh position={[0,-0.52,-0.34]} castShadow><sphereGeometry args={[0.095,10,10]} /><meshStandardMaterial color={robot ? "#d9e7ed" : "#efc1a3"}/></mesh>;
-}
-
-function Shoes() {
-  return <group><mesh position={[-0.22,0.10,-0.10]} castShadow><boxGeometry args={[0.24,0.15,0.40]}/><meshStandardMaterial color="#1e252b"/></mesh><mesh position={[0.22,0.10,-0.10]} castShadow><boxGeometry args={[0.24,0.15,0.40]}/><meshStandardMaterial color="#1e252b"/></mesh></group>;
-}
-
