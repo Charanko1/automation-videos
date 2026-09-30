@@ -54,7 +54,7 @@ const isIdleState = (s: string) => s.toLowerCase() === "idle";
 const isLimitState = (s: string) => s.toLowerCase() === "limit";
 const chooseBreakSpot = (i: number, wave: number) => BREAK_ORDER[(i + wave) % BREAK_ORDER.length];
 
-function reserveBreakSpot(workerId: string, preferred: BreakSpotId, limit: boolean, maxBreaks = C.movement.maxSimultaneousBreaks) {
+function reserveBreakSpot(workerId: string, preferred: BreakSpotId, limit: boolean, maxBreaks: number = C.movement.maxSimultaneousBreaks) {
   if (!limit && breakReservations.size >= maxBreaks) return null;
   if (!breakReservations.has(preferred)) { breakReservations.set(preferred, workerId); return preferred; }
   for (const spot of BREAK_ORDER) {
