@@ -8,7 +8,6 @@ import {
   OrbitControls,
   PerspectiveCamera,
   RoundedBox,
-  useHelper,
 } from "@react-three/drei";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, RefObject } from "react";
@@ -798,8 +797,6 @@ function WorkerCharacter({
   );
   const mode = useRef<Mode>("WORKING");
   const modeTime = useRef(0);
-  useHelper(debug ? hitbox : false, THREE.BoxHelper, "#ff3d66");
-
   const micro = useRef<{type: MicroAction; started: number; duration: number; next: number}>({
     type: "NONE",
     started: 0,
@@ -816,8 +813,6 @@ function WorkerCharacter({
   const pulledChair = useMemo(() => new THREE.Vector3(...seat.pulledChairPosition), [seat]);
   const approach = useMemo(() => new THREE.Vector3(...seat.approachPosition), [seat]);
 
-  useHelper(debug ? root : false, THREE.BoxHelper, "#ffe066");
-  useHelper(debug ? chair : false, THREE.BoxHelper, "#ff5d76");
 
   useFrame((state, delta) => {
     if (!root.current || !body.current || !head.current || !chair.current) return;
@@ -1065,7 +1060,7 @@ function WorkerCharacter({
           renderOrder={999}
         >
           <boxGeometry args={[1.12, 2.38, 0.88]} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          <meshBasicMaterial transparent opacity={debug ? 0.15 : 0} depthWrite={false} wireframe />
         </mesh>
         <group ref={body}>
           <RoundedBox args={[0.86, 0.74, 0.60]} radius={0.11} smoothness={3} position={[0, 1.04, 0]} castShadow>
