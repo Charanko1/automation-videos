@@ -27,6 +27,7 @@ export default function Page(){
   const [scene,setScene]=useState(12);
   const [selected,setSelected]=useState("gemi");
   const [toast,setToast]=useState("Office ready.");
+  const [limited,setLimited]=useState<Record<string,boolean>>({});
 
   useEffect(()=>{
     if(!running||resting||scene>=30)return;
@@ -42,7 +43,8 @@ export default function Page(){
   const cost=Math.min(30000,6200+scene*180);
   const pct=Math.round(scene/30*100);
 
-  const status=(dept:string)=>{
+  const status=(dept:string,id?:string)=>{
+    if(id && limited[id]) return "Limit";
     if(resting)return "Resting";
     if(!running)return "Idle";
     if(dept==="image"&&scene>=12)return "Working";
@@ -68,7 +70,7 @@ export default function Page(){
       <aside className="side left">
         <div className="title"><Users size={14}/> Employees</div>
         {people.map(p=>{
-          const st=status(p.dept);
+          const st=status(p.dept,p.id);
           return <button key={p.id} className={`emp ${selected===p.id?"sel":""}`} onClick={()=>setSelected(p.id)}>
             <div className="avatar" style={{background:`linear-gradient(145deg,${p.color},#fff)`}}>{p.name[0]}</div>
             <div><div className="ename">{p.name}</div><div className="erole">{p.role}</div><div className={`estate ${st.toLowerCase()}`}><span className="dot"/>{st} · {p.provider}</div></div>
@@ -80,7 +82,7 @@ export default function Page(){
       </aside>
 
       <section className="world">
-        <OfficeWorld people={people.map(p=>({...p,state:status(p.dept)}))} running={running} resting={resting} selected={selected}/>
+        <OfficeWorld people={people.map(p=>({...p,state:status(p.dept,p.id)}))} running={running} resting={resting} selected={selected}/>
         <div className="hud"><div className="toast"><Activity size={13}/>{toast}</div><div className="tip">Drag = rotate · Wheel = zoom · Shift + drag = pan</div></div>
       </section>
 
@@ -96,12 +98,13 @@ export default function Page(){
           <button className="ctrl green" onClick={()=>{setRunning(true);setResting(false);setToast("Production started. Workers online.");}}><Play size={14}/> Start Production</button>
           <button className="ctrl blue" onClick={()=>{setResting(v=>!v);setToast(!resting?"REST MODE activated.":"Production resumed.")}}><Pause size={14}/> {resting?"Resume":"Pause / Rest"}</button>
           <button className="ctrl red" onClick={()=>{setRunning(false);setResting(false);setToast("Production stopped.");}}>■ Stop</button>
+          <button className="ctrl purple" onClick={()=>{setLimited(v=>({...v,[selected]:!v[selected]}));setToast(`${people.find(p=>p.id===selected)?.name} limit ${limited[selected]?"reset":"triggered"}.`);}}>{limited[selected]?"↻ Reset Limit":"⚠ Trigger Limit"}</button>
           <div className="stat" style={{marginTop:12}}><span>Current scene</span><b>{scene}/30</b></div>
           <div className="stat"><span>Daily cost</span><b>Rp {cost.toLocaleString("id-ID")}</b></div>
           <div className="stat"><span>Hard ceiling</span><b>Rp 30.000</b></div>
         </div>
         <div className="card"><div className="title"><Users size={14}/> Selected Worker</div>
-          {(()=>{const p=people.find(x=>x.id===selected)||people[0], st=status(p.dept);return <><div style={{display:"flex",gap:9,alignItems:"center"}}><div className="avatar" style={{background:`linear-gradient(145deg,${p.color},#fff)`}}>{p.name[0]}</div><div><div className="ename">{p.name}</div><div className="erole">{p.role}</div></div></div><div className="stat" style={{marginTop:10}}><span>Provider</span><b>{p.provider}</b></div><div className="stat"><span>State</span><b>{st}</b></div></>})()}
+          {(()=>{const p=people.find(x=>x.id===selected)||people[0], st=status(p.dept,p.id);return <><div style={{display:"flex",gap:9,alignItems:"center"}}><div className="avatar" style={{background:`linear-gradient(145deg,${p.color},#fff)`}}>{p.name[0]}</div><div><div className="ename">{p.name}</div><div className="erole">{p.role}</div></div></div><div className="stat" style={{marginTop:10}}><span>Provider</span><b>{p.provider}</b></div><div className="stat"><span>State</span><b>{st}</b></div></>})()}
         </div>
       </aside>
     </div>
