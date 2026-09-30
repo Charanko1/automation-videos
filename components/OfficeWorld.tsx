@@ -1113,6 +1113,131 @@ function WorkerCharacter({
   );
 }
 
+function animateWorking(
+  body: THREE.Group,
+  head: THREE.Group,
+  armL: THREE.Group,
+  armR: THREE.Group,
+  legL: THREE.Group,
+  legR: THREE.Group,
+  elapsed: number,
+  delta: number,
+  index: number,
+  micro: { type: MicroAction; started: number; duration: number; next: number },
+  allowed: boolean,
+  random: () => number,
+) {
+  const breathe =
+    Math.sin((elapsed + index * 0.83) * 2 * Math.PI * OFFICE_CONFIG.idle.breathingHz) *
+    OFFICE_CONFIG.idle.breathingAmplitude;
+
+  body.position.y = damp(body.position.y, breathe, 8, delta);
+
+  if (allowed && micro.type === "NONE" && elapsed >= micro.next) {
+    const roll = random();
+    const checks: Array<[number, MicroAction]> = [
+      [OFFICE_CONFIG.idle.probabilities.stretch, "STRETCH"],
+      [OFFICE_CONFIG.idle.probabilities.scratch, "SCRATCH"],
+      [OFFICE_CONFIG.idle.probabilities.drink, "DRINK"],
+      [OFFICE_CONFIG.idle.probabilities.lean, "LEAN"],
+      [OFFICE_CONFIG.idle.probabilities.shift, "SHIFT"],
+      [1, "LOOK"],
+    ];
+
+    let cumulative = 0;
+    let picked: MicroAction = "LOOK";
+    for (const [weight, type] of checks) {
+      cumulative += weight;
+      if (roll <= cumulative) {
+        picked = type;
+        break;
+      }
+    }
+
+    micro.type = picked;
+    micro.started = elapsed;
+    micro.duration = THREE.MathUtils.lerp(0.7, 1.9, random());
+    micro.next =
+      elapsed +
+      THREE.MathUtils.lerp(
+        OFFICE_CONFIG.idle.microMinSeconds,
+        OFFICE_CONFIG.idle.microMaxSeconds,
+        random(),
+      );
+  }
+
+  const active =
+    micro.type !== "NONE" && elapsed - micro.started < micro.duration;
+
+  const progress = active
+    ? easeInOut((elapsed - micro.started) / micro.duration)
+    : 0;
+  const wave = Math.sin(progress * Math.PI);
+
+  let targetHead = 0;
+  let targetBody = 0.035;
+  let leftArm = 0.18;
+  let rightArm = -0.18;
+
+  if (active) {
+    if (micro.type === "LOOK") {
+      targetHead = OFFICE_CONFIG.idle.headTurnAmplitude * wave;
+    } else if (micro.type === "SCRATCH") {
+      leftArm = 0.66 + 0.10 * wave;
+    } else if (micro.type === "DRINK") {
+      rightArm = -0.78;
+    } else if (micro.type === "LEAN") {
+      targetBody = 0.035 - 0.10 * wave;
+    } else if (micro.type === "STRETCH") {
+      leftArm = -0.42 - 0.22 * wave;
+      rightArm = 0.42 + 0.22 * wave;
+      targetBody = 0.02 - 0.04 * wave;
+    }
+  } else if (micro.type !== "NONE") {
+    micro.type = "NONE";
+  }
+
+  head.rotation.y = damp(head.rotation.y, targetHead, 7, delta);
+  head.rotation.x = damp(
+    head.rotation.x,
+    Math.sin(elapsed * 0.65 + index) * OFFICE_CONFIG.idle.headNodAmplitude * 0.18,
+    6,
+    delta,
+  );
+
+  body.rotation.x = damp(body.rotation.x, targetBody, 7, delta);
+
+  const typing =
+    active && micro.type !== "LOOK"
+      ? 0.18
+      : OFFICE_CONFIG.idle.typingAmplitude;
+
+  armL.rotation.z = damp(
+    armL.rotation.z,
+    leftArm +
+      Math.sin(elapsed * OFFICE_CONFIG.idle.typingSpeed + index) * typing,
+    11,
+    delta,
+  );
+  armR.rotation.z = damp(
+    armR.rotation.z,
+    rightArm +
+      Math.sin(elapsed * OFFICE_CONFIG.idle.typingSpeed * 1.13 + index * 1.7) * typing,
+    11,
+    delta,
+  );
+
+  body.position.x = damp(
+    body.position.x,
+    micro.type === "SHIFT" ? 0.10 * wave : 0,
+    9,
+    delta,
+  );
+
+  legL.rotation.x = damp(legL.rotation.x, 0, 8, delta);
+  legR.rotation.x = damp(legR.rotation.x, 0, 8, delta);
+}
+
 function OfficeChair({ refObj, position, rotationY }: {
   refObj: RefObject<THREE.Group>;
   position: THREE.Vector3;
