@@ -12,7 +12,7 @@ export default function AnalyticsPage() {
     setWorkspace(readWorkspace());
   }, []);
 
-  const stats = useMemo(() => {
+  const statCards = [
     const completed = workspace.projects.filter((project) => project.status === "COMPLETED").length;
     const producing = workspace.projects.filter((project) => project.status === "PRODUCING").length;
     const scenes = workspace.projects.reduce((sum, project) => sum + project.currentScene, 0);
@@ -27,7 +27,7 @@ export default function AnalyticsPage() {
     </header>
     <div style={{padding:22,maxWidth:1200,width:"100%",margin:"0 auto",overflow:"auto"}}>
       <div className="page-head"><div><div className="eyebrow">OPERATIONS</div><h1 className="page-title">Analytics</h1><div className="muted">Metrics are derived from the projects stored in this workspace.</div></div></div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:12}}>
+        {statCards.map(({ label, icon: Icon }) => <div className="card" key={label}><div className="title"><Icon size={14}/>{label}</div><div style={{fontSize:26,fontWeight:900}}>{label === "Completed projects" ? stats.completed : label === "Active production" ? stats.producing : label === "Scenes processed" ? stats.scenes : stats.totalScenes}</div><div className="muted">Workspace total</div></div>)}
         {[["Completed projects", String(stats.completed), CheckCircle2], ["Active production", String(stats.producing), PlayCircle], ["Scenes processed", String(stats.scenes), Activity], ["Scene capacity", String(stats.totalScenes), BarChart3]].map(([label,value,Icon]) => <div className="card" key={label as string}><div className="title"><Icon size={14}/>{label}</div><div style={{fontSize:26,fontWeight:900}}>{value}</div><div className="muted">Workspace total</div></div>)}
       </div>
       <div className="card">
