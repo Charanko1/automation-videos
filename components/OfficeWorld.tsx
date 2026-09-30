@@ -488,7 +488,6 @@ function WorkerCharacter({
       chair.current.position.x = damp(chair.current.position.x, pulledChair.x, 11, delta);
       chair.current.position.z = damp(chair.current.position.z, pulledChair.z, 11, delta);
       chair.current.rotation.y = damp(chair.current.rotation.y, Math.PI + OFFICE_CONFIG.desks.chairTurn, 10, delta);
-      chair.current.rotation.y = damp(chair.current.rotation.y, OFFICE_CONFIG.desks.chairTurn, 10, delta);
       if (t >= 1) { mode.current = "WALK"; modeTime.current = 0; }
     }
 
@@ -531,7 +530,15 @@ function WorkerCharacter({
       const spot = BREAK_SPOTS[plan.current?.spot ?? "window"];
       root.current.rotation.y = damp(root.current.rotation.y, spot.facing, 9, delta);
       body.current.position.y = damp(body.current.position.y, 0.035 * Math.sin(t * Math.PI), 9, delta);
-      if (t >= 1) { mode.current = "ACTIVITY"; modeTime.current = 0; }
+      if (t >= 1) { mode.current = limited ? "LIMIT_REST" : "ACTIVITY"; modeTime.current = 0; }
+    }
+
+    if (m === "LIMIT_REST") {
+      // A limit worker stays in the lounge until the external Limit flag clears.
+      body.current.position.y = damp(body.current.position.y, 0, 6, delta);
+      head.current.rotation.y = damp(head.current.rotation.y, Math.sin(elapsed * .45 + workerIndex) * .18, 4, delta);
+      armL.current.rotation.z = damp(armL.current.rotation.z, .12, 4, delta);
+      armR.current.rotation.z = damp(armR.current.rotation.z, -.12, 4, delta);
     }
 
     if (m === "ACTIVITY") {
@@ -570,7 +577,8 @@ function WorkerCharacter({
       root.current.position.lerpVectors(stand, home, t);
       body.current.position.y = damp(body.current.position.y, 0, 10, delta);
       body.current.rotation.x = damp(body.current.rotation.x, 0.035, 8, delta);
-      chair.current.position.z = damp(chair.current.position.z, 0, 10, delta);
+      chair.current.position.x = damp(chair.current.position.x, chairHome.x, 10, delta);
+      chair.current.position.z = damp(chair.current.position.z, chairHome.z, 10, delta);
       chair.current.rotation.y = damp(chair.current.rotation.y, 0, 9, delta);
       root.current.rotation.y = damp(root.current.rotation.y, Math.PI, 9, delta);
       if (t >= 1) {
