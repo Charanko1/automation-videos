@@ -21,6 +21,8 @@ const pipe=[
   ["Video","Animate art"],["TTS","Create voice"],["Editing","Render final"],["Upload","Publish"]
 ];
 
+type WorkerCommand = { workerId: string; type: "BREAK" | "RETURN"; nonce: number };
+
 export default function Page(){
   const [running,setRunning]=useState(false);
   const [resting,setResting]=useState(false);
@@ -30,6 +32,7 @@ export default function Page(){
   const [limited,setLimited]=useState<Record<string,boolean>>({});
   const [limitResetAt,setLimitResetAt]=useState<Record<string,number>>({});
   const [now,setNow]=useState(Date.now());
+  const [workerCommand,setWorkerCommand]=useState<WorkerCommand | null>(null);
 
   useEffect(()=>{
     const timer=setInterval(()=>setNow(Date.now()),1000);
@@ -69,14 +72,24 @@ export default function Page(){
 
   const cost=Math.min(30000,6200+scene*180);
   const pct=Math.round(scene/30*100);
-  const toggleSelectedLimit=()=>{
-    if(!selected)return;
-    const next=!limited[selected];
-    setLimited(v=>({...v,[selected]:next}));
-    if(next)setLimitResetAt(v=>({...v,[selected]:Date.now()+90000}));
-    else setLimitResetAt(v=>{const n={...v};delete n[selected];return n;});
-    const name=people.find(p=>p.id===selected)?.name||"Worker";
+  const toggleLimit=(id:string)=>{
+    const next=!limited[id];
+    setLimited(v=>({...v,[id]:next}));
+    if(next)setLimitResetAt(v=>({...v,[id]:Date.now()+90000}));
+    else setLimitResetAt(v=>{const n={...v};delete n[id];return n;});
+    const name=people.find(p=>p.id===id)?.name||"Worker";
     setToast(name+" limit "+(next?"triggered":"reset")+".");
+  };
+
+  const toggleSelectedLimit=()=>{
+    if(selected)toggleLimit(selected);
+  };
+
+  const issueWorkerCommand=(type:"BREAK"|"RETURN")=>{
+    if(!selected)return;
+    const name=people.find(p=>p.id===selected)?.name||"Worker";
+    setWorkerCommand(current=>({workerId:selected,type,nonce:(current?.nonce??0)+1}));
+    setToast(type==="BREAK" ? name+" diminta istirahat." : name+" dipanggil kembali ke meja.");
   };
 
   const status=(dept:string,id?:string)=>{
@@ -118,7 +131,7 @@ export default function Page(){
       </aside>
 
       <section className="world">
-        <OfficeWorld people={people.map(p=>({...p,state:status(p.dept,p.id)}))} running={running} resting={resting} selected={selected} onSelect={setSelected}/>
+        <OfficeWorld people={people.map(p=>({...p,state:status(p.dept,p.id)}))} running={running} resting={resting} selected={selected} onSelect={setSelected} workerCommand={workerCommand}/>
         <div className="hud"><div className="toast"><Activity size={13}/>{toast}</div><div className="tip">Drag = rotate · Wheel = zoom · Shift + drag = pan</div></div>
       </section>
 
@@ -147,9 +160,9 @@ export default function Page(){
             <div className="detail-block"><div className="mini">Current task</div><div className="detail-value">{task}</div></div>
             {st==="Limit"&&<div className="detail-block"><div className="mini">Mock reset</div><div className="detail-value">{countdown}</div></div>}
             <div className="worker-actions">
-              <button className="worker-action amber" onClick={()=>setToast(p.name+" was asked to take a break (mock).")}>☕ Suruh istirahat</button>
-              <button className="worker-action" onClick={()=>setToast(p.name+" was called back to their desk (mock).")}>↩ Panggil ke meja</button>
-              <button className="worker-action purple" onClick={()=>{setLimited(v=>({...v,[p.id]:!v[p.id]})); if(!limited[p.id])setLimitResetAt(v=>({...v,[p.id]:Date.now()+90000})); else setLimitResetAt(v=>{const n={...v};delete n[p.id];return n;}); setToast(p.name+" limit "+(limited[p.id]?"reset":"triggered")+"." );}}>{limited[p.id]?"↻ Reset limit":"⚠ Picu limit"}</button>
+              <button className="worker-action amber" onClick={()=>issueWorkerCommand("BREAK")}>☕ Suruh istirahat</button>
+              <button className="worker-action" onClick={()=>issueWorkerCommand("RETURN")}>↩ Panggil ke meja</button>
+              <button className="worker-action purple" onClick={()=>toggleLimit(p.id)}>{limited[p.id]?"↻ Reset limit":"⚠ Picu limit"}</button>
             </div>
           </div>})() : <div className="empty-detail"><div className="empty-icon">⌁</div><div className="ename">No worker selected</div><div className="muted">Klik karakter di office 3D atau pilih employee di kiri.</div></div>}
         </div>
