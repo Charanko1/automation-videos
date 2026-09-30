@@ -82,7 +82,7 @@ export default function ProjectsPage() {
             <div><div className="mini">Progress</div><div style={{fontSize:11,fontWeight:800,marginTop:4}}>{project.currentScene}/{project.totalScenes} · {progress}%</div></div>
             <div className="project-actions">
               <button className="worker-action" onClick={() => activate(project.id)}>{active ? <><CheckCircle2 size={13}/> Active</> : <><Play size={13}/> Use</>}</button>
-              <Link className="worker-action" href="/" style={{textDecoration:"none",justifyContent:"center"}}>Open</Link>
+              <Link className="worker-action" href="/" onClick={() => activate(project.id)} style={{textDecoration:"none",justifyContent:"center"}}>Open</Link>
               <button className="worker-action danger" onClick={() => remove(project.id)} aria-label={`Delete ${project.title}`}><Trash2 size={13}/></button>
             </div>
           </div>;
