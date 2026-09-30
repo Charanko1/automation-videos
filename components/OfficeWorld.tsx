@@ -593,7 +593,7 @@ function CoffeeTable({ position }: { position: [number, number, number] }) {
 }
 
 function Plant({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh castShadow><cylinderGeometry args={[0.34,0.42,0.48,10]} /><meshStandardMaterial color="#a66f47" roughness={0.96}/></mesh>{[-0.18,0,0.18].map((x,i)=><mesh key={i} position={[x,0.72,0.02]} rotation={[0,0,(i-1)*0.25]} castShadow><sphereGeometry args={[0.23,0.23,0.52,12}/><meshStandardMaterial color={["#63b579","#4aa66b","#7ac78a"][i]}/></mesh>)}</group>;
+  return <group position={position}><mesh castShadow><cylinderGeometry args={[0.34,0.42,0.48,10]} /><meshStandardMaterial color="#a66f47" roughness={0.96}/></mesh>{[-0.18,0,0.18].map((x,i)=><mesh key={i} position={[x,0.72,0.02]} rotation={[0,0,(i-1)*0.25]} castShadow><sphereGeometry args={[0.23,0.23,0.52,12]} /><meshStandardMaterial color={["#63b579","#4aa66b","#7ac78a"][i]}/></mesh>)}</group>;
 }
 
 function Shelf({ position }: { position: [number, number, number] }) {
