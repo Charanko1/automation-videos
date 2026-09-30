@@ -28,6 +28,10 @@ export default function Page(){
   const [selected,setSelected]=useState<string | null>(null);
   const [toast,setToast]=useState("Office ready.");
   const [limited,setLimited]=useState<Record<string,boolean>>({});
+  const [limitResetAt,setLimitResetAt]=useState<Record<string,number>>({});
+  const [now,setNow]=useState(Date.now());
+
+  useEffect(()=>{ const timer=setInterval(()=>setNow(Date.now()),1000); return()=>clearInterval(timer); },[]);
 
   useEffect(()=>{
     if(!running||resting||scene>=30)return;
