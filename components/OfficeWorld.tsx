@@ -275,21 +275,21 @@ export default function OfficeWorld({
         scene.fog = new THREE.Fog("#aeb5bd", 30, 60);
       }}
     >
-      <PerspectiveCamera makeDefault position={[18.2, 14.3, 19.4]} fov={33} near={0.1} far={120} />
-      <ambientLight intensity={0.22} />
-      <hemisphereLight args={["#c4d4e4", "#8b6246", 1.65]} />
+      <PerspectiveCamera makeDefault position={[19.5, 15.8, 21.5]} fov={32} near={0.1} far={140} />
+      <ambientLight intensity={0.16} />
+      <hemisphereLight args={["#91a8c5", "#5d3d2b", 1.25]} />
       <directionalLight
         castShadow
         position={[6.5, 15, 11]}
-        intensity={4.0}
+        intensity={4.8}
         color="#ffd5a0"
         shadow-mapSize-width={quality.shadowMap}
         shadow-mapSize-height={quality.shadowMap}
         shadow-bias={-0.00045}
         shadow-normalBias={0.035}
       />
-      <pointLight position={[-7, 7, 4]} intensity={12} distance={24} color="#9dcfff" />
-      <pointLight position={[8, 5, -5]} intensity={9} distance={20} color="#ffd9ae" />
+      <pointLight position={[-8, 6.5, 1]} intensity={8} distance={25} color="#7897c8" />
+      <pointLight position={[8, 5.5, -6]} intensity={14} distance={22} color="#ffb56b" />
 
       <InteractionController hitboxes={hitboxes} onSelect={onSelect} onHover={setHoveredId} />
       <OfficeEnvironment resting={resting} />
@@ -446,11 +446,11 @@ function OfficeEnvironment({ resting }: { resting: boolean }) {
     <group>
       <mesh position={[0, -0.34, 0]} receiveShadow>
         <boxGeometry args={[OFFICE_CONFIG.room.width, 0.52, OFFICE_CONFIG.room.depth]} />
-        <meshStandardMaterial color="#8e6745" roughness={0.92} />
+        <meshStandardMaterial color="#4a3328" roughness={0.88} />
       </mesh>
       <mesh ref={floorMat} position={[0, -0.06, 0]} receiveShadow>
         <boxGeometry args={[OFFICE_CONFIG.room.width - 0.28, 0.10, OFFICE_CONFIG.room.depth - 0.28]} />
-        <meshStandardMaterial color="#c19a6f" roughness={0.96} />
+        <meshStandardMaterial color="#9a7253" roughness={0.91} />
       </mesh>
 
       <FloorPlanks />
@@ -461,6 +461,12 @@ function OfficeEnvironment({ resting }: { resting: boolean }) {
       <Lounge />
       <WallBoard />
       <Door />
+      <ArchitectureDetails />
+      <OfficeBranding />
+      <WallArt />
+      <BookcaseRow />
+      <FloorRugs />
+      <WarmTableLamps />
     </group>
   );
 }
@@ -494,11 +500,11 @@ function Walls() {
     <group>
       <mesh position={[0, OFFICE_CONFIG.room.wallHeight / 2, OFFICE_CONFIG.room.backWallZ]} receiveShadow>
         <boxGeometry args={[OFFICE_CONFIG.room.width, OFFICE_CONFIG.room.wallHeight, 0.28]} />
-        <meshStandardMaterial color="#ddd5c6" roughness={0.98} />
+        <meshStandardMaterial color="#2a2c33" roughness={0.94} />
       </mesh>
       <mesh position={[OFFICE_CONFIG.room.leftWallX, OFFICE_CONFIG.room.wallHeight / 2, 0]} receiveShadow>
         <boxGeometry args={[0.28, OFFICE_CONFIG.room.wallHeight, OFFICE_CONFIG.room.depth]} />
-        <meshStandardMaterial color="#d2c8b7" roughness={0.99} />
+        <meshStandardMaterial color="#20232a" roughness={0.94} />
       </mesh>
       <mesh position={[OFFICE_CONFIG.room.rightWallX, OFFICE_CONFIG.room.wallHeight / 2, 0]} receiveShadow>
         <boxGeometry args={[0.28, OFFICE_CONFIG.room.wallHeight, OFFICE_CONFIG.room.depth]} />
@@ -506,7 +512,7 @@ function Walls() {
       </mesh>
       <mesh position={[0, 0.22, OFFICE_CONFIG.room.backWallZ + 0.18]} receiveShadow>
         <boxGeometry args={[OFFICE_CONFIG.room.width, 0.22, 0.12]} />
-        <meshStandardMaterial color="#6d4e38" roughness={0.8} />
+        <meshStandardMaterial color="#17191f" roughness={0.78} />
       </mesh>
     </group>
   );
@@ -518,11 +524,11 @@ function Windows() {
       {[-10.2, -4.4, 1.4, 7.2].map((x) => (
         <group key={x} position={[x, 5.05, -10.30]}>
           <RoundedBox args={[4.7, 2.35, 0.10]} radius={0.07} smoothness={2} castShadow>
-            <meshStandardMaterial color="#7094aa" roughness={0.42} />
+            <meshStandardMaterial color="#26323e" roughness={0.42} metalness={0.12} />
           </RoundedBox>
           <mesh position={[0, 0, 0.06]}>
             <boxGeometry args={[4.42, 2.08, 0.018]} />
-            <meshStandardMaterial color="#d7eef7" roughness={0.16} emissive="#78a5bb" emissiveIntensity={0.07} />
+            <meshStandardMaterial color="#182634" roughness={0.20} emissive="#355f86" emissiveIntensity={0.18} />
           </mesh>
           <mesh position={[0, 0, 0.085]}>
             <boxGeometry args={[0.065, 2.18, 0.018]} />
@@ -560,6 +566,49 @@ function CeilingLights({ resting }: { resting: boolean }) {
   );
 }
 
+function ArchitectureDetails() {
+  return <group>
+    {[-11,-5.5,0,5.5,11].map(x=><mesh key={"beam"+x} position={[x,7.38,0]} castShadow><boxGeometry args={[0.18,0.24,22.4]}/><meshStandardMaterial color="#171a20" roughness={0.72}/></mesh>)}
+    {[-11,-5.5,0,5.5,11].map(z=><mesh key={"cross"+z} position={[0,7.38,z]} castShadow><boxGeometry args={[29.6,0.24,0.18]}/><meshStandardMaterial color="#171a20" roughness={0.72}/></mesh>)}
+    <mesh position={[0,0.30,OFFICE_CONFIG.room.backWallZ+0.18]} castShadow><boxGeometry args={[29.5,0.36,0.18]}/><meshStandardMaterial color="#25212a" roughness={0.7}/></mesh>
+    <mesh position={[OFFICE_CONFIG.room.leftWallX+0.18,0.30,0]} castShadow><boxGeometry args={[0.18,0.36,22.5]}/><meshStandardMaterial color="#25212a" roughness={0.7}/></mesh>
+    <mesh position={[OFFICE_CONFIG.room.rightWallX-0.18,0.30,0]} castShadow><boxGeometry args={[0.18,0.36,22.5]}/><meshStandardMaterial color="#25212a" roughness={0.7}/></mesh>
+    <mesh position={[-0.6,2.1,-7.0]}><boxGeometry args={[0.06,4.2,8.8]}/><meshStandardMaterial color="#7b8a98" transparent opacity={0.10} roughness={0.12} metalness={0.25}/></mesh>
+  </group>;
+}
+
+function OfficeBranding() {
+  return <group position={[10.6,4.45,-11.28]}>
+    <RoundedBox args={[5.2,2.25,0.10]} radius={0.08} smoothness={3} castShadow><meshStandardMaterial color="#121820" roughness={0.36} metalness={0.12}/></RoundedBox>
+    <Html center position={[0,0,0.08]} distanceFactor={12}><div className="officeBrand"><div className="officeBrandIcon">◈</div><div className="officeBrandTitle">AI AGENT OFFICE</div><div className="officeBrandSub">YOUTUBE FACTORY · AUTONOMOUS STUDIO</div></div></Html>
+    <pointLight position={[0,0,0.4]} intensity={3.5} distance={7} color="#6e83ff"/>
+  </group>;
+}
+
+function WallArt() {
+  const frames=[{x:-10.0,y:4.15,w:2.15,h:2.65,c:"#315a78",title:"BUILD\nREPEAT"},{x:-7.55,y:4.15,w:2.15,h:2.65,c:"#6a4d78",title:"CREATE\nSHIP"},{x:7.35,y:4.0,w:2.15,h:2.55,c:"#5d4233",title:"PLAN\nEXECUTE"},{x:9.75,y:4.0,w:2.15,h:2.55,c:"#425e51",title:"IDEA\nEDIT"}];
+  return <group>{frames.map((f,i)=><group key={i} position={[f.x,f.y,-11.30]}><mesh castShadow><boxGeometry args={[f.w,f.h,0.08]}/><meshStandardMaterial color="#171a20" roughness={0.42}/></mesh><mesh position={[0,0,0.06]}><boxGeometry args={[f.w-0.18,f.h-0.18,0.018]}/><meshStandardMaterial color={f.c} emissive={f.c} emissiveIntensity={0.10}/></mesh><Html center position={[0,0,0.08]} distanceFactor={15}><div className="wallArtText">{f.title.split("\n").map((x,j)=><div key={j}>{x}</div>)}</div></Html></group>)}</group>;
+}
+
+function BookcaseRow() {
+  const xs=[-10.5,-8.2,-5.9,8.0];
+  return <group>{xs.map((x,i)=><group key={x} position={[x,1.7,-10.88]}><mesh castShadow><boxGeometry args={[1.9,3.25,0.56]}/><meshStandardMaterial color="#2d211b" roughness={0.88}/></mesh>{[0.88,0.02,-0.84].map((y,j)=><mesh key={j} position={[0,y,0.31]}><boxGeometry args={[1.72,0.08,0.08]}/><meshStandardMaterial color="#624532" roughness={0.9}/></mesh>)}{[-0.62,-0.20,0.20,0.62].map((x2,j)=><mesh key={j} position={[x2,0.42+(j%2)*0.05,0.37]} rotation={[0,(j%2)*0.08,0]}><boxGeometry args={[0.20,0.62,0.13]}/><meshStandardMaterial color={["#b45b55","#d2a34f","#4c7894","#6e9270"][j]}/></mesh>)}{i%2===0&&<Plant position={[0,1.72,0.36]} scale={0.65}/>}</group>)}</group>;
+}
+
+function FloorRugs() {
+  return <group>
+    <mesh position={[0,0.008,1.0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[12.8,7.1]}/><meshStandardMaterial color="#3d3946" roughness={0.98}/></mesh>
+    <mesh position={[0,0.012,1.0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[12.2,6.5]}/><meshStandardMaterial color="#514753" roughness={0.99}/></mesh>
+    <mesh position={[6.1,0.015,-8.05]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[10.2,5.4]}/><meshStandardMaterial color="#302a38" roughness={0.99}/></mesh>
+    <mesh position={[6.1,0.018,-8.05]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[9.7,4.9]}/><meshStandardMaterial color="#514154" roughness={1}/></mesh>
+  </group>;
+}
+
+function WarmTableLamps() {
+  const spots=[[-4.1,1.65,1.35],[0,1.65,1.35],[4.1,1.65,1.35],[-2,1.65,-1.05],[2,1.65,-1.05],[0,1.75,6.0]];
+  return <group>{spots.map((p,i)=><group key={i} position={p as [number,number,number]}><mesh position={[0,0.12,0]} castShadow><cylinderGeometry args={[0.06,0.09,0.24,10]}/><meshStandardMaterial color="#3b2d26"/></mesh><mesh position={[0,0.30,0]}><sphereGeometry args={[0.14,12,8]}/><meshStandardMaterial color="#ffe6aa" emissive="#ffb85c" emissiveIntensity={0.55}/></mesh><pointLight position={[0,0.35,0]} intensity={1.3} distance={3.2} color="#ffb86a"/></group>)}</group>;
+}
+
 function WorkFurniture() {
   return (
     <group>
@@ -580,14 +629,14 @@ function Desk({ id, position }: { id: string; position: [number, number, number]
     <group position={position} rotation={[0, OFFICE_CONFIG.desks.rotationY, 0]}>
       <mesh position={[0, OFFICE_CONFIG.workZone.desk.topY, 0]} castShadow receiveShadow>
         <RoundedBox args={[w, 0.22, d]} radius={0.08} smoothness={2}>
-          <meshStandardMaterial color={head ? "#4f3f67" : "#624633"} roughness={0.70} metalness={0.03} />
+          <meshStandardMaterial color={head ? "#4c3a58" : "#3b2921"} roughness={0.66} metalness={0.03} />
           <Edges color={head ? "#cab3ff" : "#b69373"} threshold={30} lineWidth={1} />
         </RoundedBox>
       </mesh>
       {[[-0.86, 0.66, -0.37], [0.86, 0.66, -0.37], [-0.86, 0.66, 0.37], [0.86, 0.66, 0.37]].map((p, i) => (
         <mesh key={i} position={p as [number, number, number]} castShadow>
           <boxGeometry args={[0.13, 1.54, 0.13]} />
-          <meshStandardMaterial color="#40291e" roughness={0.86} />
+          <meshStandardMaterial color="#211714" roughness={0.86} />
         </mesh>
       ))}
       <Monitor head={head} />
