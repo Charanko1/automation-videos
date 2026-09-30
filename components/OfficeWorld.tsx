@@ -5,7 +5,7 @@ import { Html, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import * as THREE from "three";
-import { OFFICE_CONFIG, BreakSpotId, WORKER_DESK_IDS } from "../lib/officeConfig";
+import { OFFICE_CONFIG, BreakSpotId, WORKER_DESK_IDS, getSeatTransform } from "../lib/officeConfig";
 
 type Person = {
   id: string;
@@ -25,7 +25,8 @@ type Mode =
   | "ARRIVE"
   | "ACTIVITY"
   | "WALK_BACK"
-  | "SIT_DOWN";
+  | "SIT_DOWN"
+  | "LIMIT_REST";
 
 type BreakActivity = "SOFA" | "SNACK" | "WINDOW";
 
@@ -38,14 +39,14 @@ type BreakSpot = {
 const DESKS: Record<string, [number, number, number]> = OFFICE_CONFIG.desks.positions;
 
 const BREAK_SPOTS: Record<BreakSpotId, BreakSpot> = {
-  sofaLeft: { pos: [3.65, 0, -5.20], facing: Math.PI, activity: "SOFA" },
-  sofaRight: { pos: [5.25, 0, -5.20], facing: Math.PI, activity: "SOFA" },
-  snacks: { pos: [7.15, 0, -4.00], facing: -Math.PI / 2, activity: "SNACK" },
-  window: { pos: [3.75, 0, -5.90], facing: Math.PI, activity: "WINDOW" },
+  sofaLeft: { pos: OFFICE_CONFIG.lounge.sofa.left, facing: Math.PI, activity: "SOFA" },
+  sofaRight: { pos: OFFICE_CONFIG.lounge.sofa.right, facing: Math.PI, activity: "SOFA" },
+  snacks: { pos: OFFICE_CONFIG.lounge.snacks, facing: -Math.PI / 2, activity: "SNACK" },
+  window: { pos: OFFICE_CONFIG.lounge.window, facing: Math.PI, activity: "WINDOW" },
 };
 
-const ROUTE_SIDE_X = 7.45;
-const ROUTE_REAR_Z = -4.25;
+const ROUTE_SIDE_X = OFFICE_CONFIG.lounge.sideCorridorX;
+const ROUTE_REAR_Z = OFFICE_CONFIG.lounge.rearWalkZ;
 const WALK_PAIRS: Array<[number, number]> = [[0, 5], [1, 4], [2, 3]];
 const SPOT_ORDER: BreakSpotId[] = ["sofaLeft", "sofaRight", "snacks", "window"];
 
@@ -78,9 +79,9 @@ function deskPosition(id: string) {
 }
 
 function homeSeat(id: string) {
-  const d = deskPosition(id);
-  return new THREE.Vector3(d[0], 0, d[2] + OFFICE_CONFIG.desks.chairOffsetZ);
+  return new THREE.Vector3(...getSeatTransform(deskPosition(id)).seatPosition);
 }
+function seatTransform(id: string) { return getSeatTransform(deskPosition(id)); }
 
 function buildRoute(from: THREE.Vector3, spot: BreakSpotId, back = false) {
   const target = new THREE.Vector3(...BREAK_SPOTS[spot].pos);
@@ -90,7 +91,7 @@ function buildRoute(from: THREE.Vector3, spot: BreakSpotId, back = false) {
     ? [
         target,
         new THREE.Vector3(ROUTE_SIDE_X, 0, ROUTE_REAR_Z),
-        new THREE.Vector3(ROUTE_SIDE_X, 0, 1.25),
+        new THREE.Vector3(ROUTE_SIDE_X, 0, OFFICE_CONFIG.workZone.corridorFrontZ),
         from.clone(),
       ]
     : [
@@ -143,7 +144,7 @@ export default function OfficeWorld({
         gl.setClearColor("#aeb8c4", 1);
       }}
     >
-      <PerspectiveCamera makeDefault position={[12.6, 10.2, 13.6]} fov={42} near={0.1} far={100} />
+      <PerspectiveCamera makeDefault position={[17.5, 13.5, 19.5]} fov={43} near={0.1} far={120} />
       <ambientLight intensity={2.15} />
       <directionalLight
         position={[7, 14, 8]}
@@ -174,9 +175,9 @@ export default function OfficeWorld({
 
       <OrbitControls
         makeDefault
-        target={[0, 1.15, 0]}
-        minDistance={9}
-        maxDistance={20}
+        target={[0, 1.0, -0.8]}
+        minDistance={13}
+        maxDistance={30}
         minPolarAngle={0.78}
         maxPolarAngle={1.48}
         enableDamping
@@ -191,23 +192,23 @@ function OfficeGeometry({ resting }: { resting: boolean }) {
   return (
     <group>
       <mesh position={[0, -0.34, 0]} receiveShadow>
-        <boxGeometry args={[18, 0.52, 14]} />
+        <boxGeometry args={[OFFICE_CONFIG.room.width, 0.52, OFFICE_CONFIG.room.depth]} />
         <meshStandardMaterial color="#8e6748" roughness={0.92} />
       </mesh>
       <mesh position={[0, -0.06, 0]} receiveShadow>
-        <boxGeometry args={[17.7, 0.10, 13.7]} />
+        <boxGeometry args={[OFFICE_CONFIG.room.width - 0.3, 0.10, OFFICE_CONFIG.room.depth - 0.3]} />
         <meshStandardMaterial color="#c19a70" roughness={0.98} />
       </mesh>
 
-      <mesh position={[0, 3.8, -6.86]} receiveShadow>
-        <boxGeometry args={[18, 7.55, 0.30]} />
+      <mesh position={[0, 3.8, OFFICE_CONFIG.room.backWallZ]} receiveShadow>
+        <boxGeometry args={[OFFICE_CONFIG.room.width, OFFICE_CONFIG.room.wallHeight, 0.30]} />
         <meshStandardMaterial color="#d9cebb" roughness={1} />
       </mesh>
-      <mesh position={[-8.86, 3.8, 0]} receiveShadow>
-        <boxGeometry args={[0.30, 7.55, 14]} />
+      <mesh position={[-14.86, 3.8, 0]} receiveShadow>
+        <boxGeometry args={[0.30, OFFICE_CONFIG.room.wallHeight, OFFICE_CONFIG.room.depth]} />
         <meshStandardMaterial color="#cfc3ad" roughness={1} />
       </mesh>
-      <mesh position={[8.86, 3.8, 0]} receiveShadow>
+      <mesh position={[14.86, 3.8, 0]} receiveShadow>
         <boxGeometry args={[0.30, 7.55, 14]} />
         <meshStandardMaterial color="#cfc3ad" roughness={1} />
       </mesh>
@@ -226,19 +227,19 @@ function FloorGrid() {
   return (
     <group>
       {Array.from({ length: 28 }).map((_, i) => (
-        <mesh key={"x" + i} position={[-8.4 + i * 0.62, -0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[0.018, 13.2]} />
+        <mesh key={"x" + i} position={[-14.2 + i * 0.62, -0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.018, 22.0]} />
           <meshBasicMaterial color="#9e7857" transparent opacity={0.30} />
         </mesh>
       ))}
       {Array.from({ length: 23 }).map((_, i) => (
-        <mesh key={"z" + i} position={[0, -0.004, -6.1 + i * 0.56]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[17.1, 0.018]} />
+        <mesh key={"z" + i} position={[0, -0.004, -10.1 + i * 0.56]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[29.0, 0.018]} />
           <meshBasicMaterial color="#9e7857" transparent opacity={0.30} />
         </mesh>
       ))}
       <mesh position={[0, 0.005, -5.05]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[7.0, 2.65]} />
+        <planeGeometry args={OFFICE_CONFIG.lounge.size} />
         <meshStandardMaterial color="#756486" roughness={1} />
       </mesh>
     </group>
@@ -248,14 +249,14 @@ function FloorGrid() {
 function WindowRow() {
   return (
     <group>
-      {[-6, -2, 2, 6].map((x) => (
-        <group key={x} position={[x, 4.9, -6.53]}>
+      {[-11, -5.5, 0, 5.5, 11].map((x) => (
+        <group key={x} position={[x, 4.9, -10.92]}>
           <mesh castShadow>
-            <boxGeometry args={[3.42, 2.25, 0.09]} />
+            <boxGeometry args={[4.55, 2.25, 0.09]} />
             <meshStandardMaterial color="#6e93aa" roughness={0.5} />
           </mesh>
           <mesh position={[0, 0, 0.055]}>
-            <boxGeometry args={[3.16, 1.98, 0.018]} />
+            <boxGeometry args={[4.25, 1.98, 0.018]} />
             <meshBasicMaterial color="#d4ebf6" />
           </mesh>
           <mesh position={[0, 0, 0.085]}>
@@ -263,7 +264,7 @@ function WindowRow() {
             <meshStandardMaterial color="#7c6c57" />
           </mesh>
           <mesh position={[0, 0, 0.085]}>
-            <boxGeometry args={[3.28, 0.06, 0.018]} />
+            <boxGeometry args={[4.4, 0.06, 0.018]} />
             <meshStandardMaterial color="#7c6c57" />
           </mesh>
         </group>
@@ -295,9 +296,9 @@ function Workstations() {
       {WORKER_DESK_IDS.map((id) => (
         <Desk key={id} position={DESKS[id]} />
       ))}
-      <Shelf position={[-7.2, 0, -3.65]} />
-      <Printer position={[-7.0, 0, -1.85]} />
-      <ServerRack position={[7.0, 0, 1.0]} />
+      <Shelf position={[-12.5, 0, -8.6]} />
+      <Printer position={[-12.3, 0, -5.5]} />
+      <ServerRack position={[12.4, 0, 4.5]} />
     </group>
   );
 }
@@ -357,15 +358,15 @@ function DeskLamp(){return <group position={[0.9,1.6,-0.2]}><mesh position={[0,0
 function BreakZone(){
   return <group>
     <Sofa/>
-    <VendingMachine position={[7.15,0,-3.9]}/>
-    <Plant position={[3.0,0,-5.75]}/>
-    <Plant position={[7.9,0,-5.2]}/>
-    <CoffeeTable position={[5.25,0,-4.35]}/>
-    <FishTank position={[6.0,0,3.9]}/>
+    <VendingMachine position={[...OFFICE_CONFIG.lounge.snacks]}/>
+    <Beanbag position={[...OFFICE_CONFIG.lounge.beanbagA]}/>
+    <Beanbag position={[...OFFICE_CONFIG.lounge.beanbagB]}/>
+    <CoffeeTable position={[6.8,0,-7.0]}/>
+    <FishTank position={[11.0,0,-8.8]}/>
   </group>;
 }
 function Sofa(){
-  return <group position={[4.5,0,-5.2]}>
+  return <group position={[5.45,0,-8.55]}>
     <mesh position={[0,0.5,0]} castShadow><boxGeometry args={[3.35,0.62,1.0]}/><meshStandardMaterial color="#6d5975" roughness={0.9}/></mesh>
     <mesh position={[-1.53,1.0,0]} castShadow><boxGeometry args={[0.34,1.55,1.0]}/><meshStandardMaterial color="#6d5975"/></mesh>
     <mesh position={[1.53,1.0,0]} castShadow><boxGeometry args={[0.34,1.55,1.0]}/><meshStandardMaterial color="#6d5975"/></mesh>
@@ -382,6 +383,7 @@ function VendingMachine({position}:{position:[number,number,number]}){
     <Html center position={[0,1.48,.16]} distanceFactor={14}><div className="prop-label">SNACKS</div></Html>
   </group>;
 }
+function Beanbag({position}:{position:[number,number,number]}){return <group position={position}><mesh scale={[1,0.7,1]} castShadow><sphereGeometry args={[0.72,16,10]}/><meshStandardMaterial color="#6c7699" roughness={.92}/></mesh></group>}
 function Plant({position}:{position:[number,number,number]}){return <group position={position}><mesh castShadow><cylinderGeometry args={[.34,.42,.48,10]}/><meshStandardMaterial color="#a66f47"/></mesh>{[-.18,0,.18].map((x,i)=><mesh key={i} position={[x,.72,.02]} rotation={[0,0,(i-1)*.25]} castShadow><sphereGeometry args={[.23,.23,.52,12]}/><meshStandardMaterial color={["#64b779","#4ba66d","#79c889"][i]}/></mesh>)}</group>}
 function CoffeeTable({position}:{position:[number,number,number]}){return <group position={position}><mesh position={[0,.34,0]} castShadow><cylinderGeometry args={[.72,.70,.10,12]}/><meshStandardMaterial color="#684b37"/></mesh><mesh position={[0,.12,0]}><cylinderGeometry args={[.10,.14,.43,10]}/><meshStandardMaterial color="#4c3325"/></mesh><mesh position={[-.2,.44,.0]}><cylinderGeometry args={[.09,.10,.15,10]}/><meshStandardMaterial color="#eee6db"/></mesh></group>}
 function FishTank({position}:{position:[number,number,number]}){return <group position={position}><mesh castShadow><boxGeometry args={[1.5,1.45,.8]}/><meshPhysicalMaterial color="#6fc4dc" transparent opacity={.24} transmission={.45}/></mesh><mesh position={[0,-.54,0]}><boxGeometry args={[1.30,.34,.66]}/><meshStandardMaterial color="#917a62"/></mesh><mesh position={[.2,0,.02]}><sphereGeometry args={[.10,10,10]}/><meshStandardMaterial color="#f3b54c"/></mesh></group>}
@@ -414,17 +416,30 @@ function WorkerCharacter({
   const distance = useRef(0);
   const micro = useRef<MicroState>({ type: "NONE", started: 0, duration: 0, next: 2 + random() * 5 });
 
-  const home = useMemo(() => homeSeat(person.id), [person.id]);
-  const stand = useMemo(() => home.clone().add(new THREE.Vector3(0,0,0.52)), [home]);
+  const seat = useMemo(() => seatTransform(person.id), [person.id]);
+  const home = useMemo(() => new THREE.Vector3(...seat.seatPosition), [seat]);
+  const chairHome = useMemo(() => new THREE.Vector3(...seat.chairPosition), [seat]);
+  const pulledChair = useMemo(() => new THREE.Vector3(...seat.pulledChairPosition), [seat]);
+  const approach = useMemo(() => new THREE.Vector3(...seat.approachPosition), [seat]);
+  const stand = useMemo(() => approach.clone(), [approach]);
 
   useFrame((state, delta) => {
     if (!root.current || !body.current || !head.current || !chair.current) return;
     const elapsed = state.clock.elapsedTime;
     const activeIdle = person.state === "Idle";
+    const limited = person.state === "Limit";
 
     modeTime.current += delta;
 
-    if (globalResting) {
+    if (limited && mode.current === "WORKING") {
+      plan.current = { spot: chooseSpot(workerIndex, Math.floor(elapsed)), duration: 999999 };
+      route.current = buildRoute(root.current.position.clone(), plan.current.spot);
+      distance.current = 0; mode.current = "ANTICIPATE"; modeTime.current = 0;
+    } else if (!limited && mode.current === "LIMIT_REST") {
+      const spot = plan.current?.spot ?? "window";
+      route.current = buildReturnRoute(person.id, spot, root.current.position);
+      distance.current = 0; mode.current = "WALK_BACK"; modeTime.current = 0;
+    } else if (globalResting) {
       if (mode.current !== "WORKING" && mode.current !== "WALK_BACK" && mode.current !== "SIT_DOWN") {
         mode.current = "WALK_BACK";
         route.current = buildReturnRoute(person.id, plan.current?.spot ?? "window", root.current.position);
@@ -453,6 +468,7 @@ function WorkerCharacter({
       root.current.position.x = damp(root.current.position.x, home.x, 10, delta);
       root.current.position.z = damp(root.current.position.z, home.z, 10, delta);
       root.current.rotation.y = damp(root.current.rotation.y, Math.PI, 9, delta);
+      chair.current.rotation.y = damp(chair.current.rotation.y, Math.PI, 9, delta);
     }
 
     if (m === "ANTICIPATE") {
@@ -469,7 +485,9 @@ function WorkerCharacter({
       root.current.position.lerpVectors(home, stand, t);
       body.current.position.y = damp(body.current.position.y, 0.22 * t, 10, delta);
       body.current.rotation.x = damp(body.current.rotation.x, 0.04 - 0.10 * t, 9, delta);
-      chair.current.position.z = damp(chair.current.position.z, OFFICE_CONFIG.desks.chairPullOut, 11, delta);
+      chair.current.position.x = damp(chair.current.position.x, pulledChair.x, 11, delta);
+      chair.current.position.z = damp(chair.current.position.z, pulledChair.z, 11, delta);
+      chair.current.rotation.y = damp(chair.current.rotation.y, Math.PI + OFFICE_CONFIG.desks.chairTurn, 10, delta);
       chair.current.rotation.y = damp(chair.current.rotation.y, OFFICE_CONFIG.desks.chairTurn, 10, delta);
       if (t >= 1) { mode.current = "WALK"; modeTime.current = 0; }
     }
@@ -564,19 +582,19 @@ function WorkerCharacter({
     }
 
     if (label.current) {
-      const visible = m === "WORKING" ? "working" : (m === "ACTIVITY" || m === "ARRIVE") ? "break" : "walking";
+      const visible = limited && m === "LIMIT_REST" ? "limit" : m === "WORKING" ? "working" : (m === "ACTIVITY" || m === "ARRIVE") ? "break" : "walking";
       const text = label.current.querySelector(".state-text");
       const dot = label.current.querySelector(".state-dot") as HTMLElement | null;
       if (text) text.textContent = visible;
-      if (dot) dot.style.background = visible === "working" ? person.color : visible === "walking" ? "#7aa4ff" : "#ffbe67";
+      if (dot) dot.style.background = visible === "working" ? person.color : visible === "walking" ? "#7aa4ff" : visible === "limit" ? "#ff6378" : "#ffbe67";
     }
     if (ring.current) ring.current.visible = selected;
   });
 
   return (
     <group>
-      <OfficeChair refObj={chair} position={home} />
-      <group ref={root} position={home} rotation={[0, Math.PI, 0]}>
+      <OfficeChair refObj={chair} position={chairHome} rotationY={Math.PI} />
+      <group ref={root} position={home} rotation={[0, seat.rotationY, 0]}>
         <group ref={body}>
           <mesh position={[0,1.02,0]} castShadow><boxGeometry args={[0.84,0.72,0.58]}/><meshStandardMaterial color={person.color}/></mesh>
           <group ref={head}>
@@ -637,8 +655,8 @@ function buildReturnRoute(id:string,spot:BreakSpotId,from:THREE.Vector3){
   return {curve:c,length:c.getLength()};
 }
 
-function OfficeChair({refObj,position}:{refObj:RefObject<THREE.Group>;position:THREE.Vector3}){
-  return <group ref={refObj} position={position}>
+function OfficeChair({refObj,position,rotationY}:{refObj:RefObject<THREE.Group>;position:THREE.Vector3;rotationY:number}){
+  return <group ref={refObj} position={position} rotation={[0,rotationY,0]}>
     <mesh position={[0,.64,0]} castShadow><boxGeometry args={[.95,.14,.76]}/><meshStandardMaterial color="#3e4b59"/></mesh>
     <mesh position={[0,1.18,-.30]} castShadow><boxGeometry args={[.95,1.10,.15]}/><meshStandardMaterial color="#455361"/></mesh>
     <mesh position={[0,.26,0]}><cylinderGeometry args={[.06,.06,.55,8]}/><meshStandardMaterial color="#252b31"/></mesh>
