@@ -25,7 +25,7 @@ export default function Page(){
   const [running,setRunning]=useState(false);
   const [resting,setResting]=useState(false);
   const [scene,setScene]=useState(12);
-  const [selected,setSelected]=useState("gemi");
+  const [selected,setSelected]=useState<string | null>(null);
   const [toast,setToast]=useState("Office ready.");
   const [limited,setLimited]=useState<Record<string,boolean>>({});
 
@@ -82,7 +82,7 @@ export default function Page(){
       </aside>
 
       <section className="world">
-        <OfficeWorld people={people.map(p=>({...p,state:status(p.dept,p.id)}))} running={running} resting={resting} selected={selected}/>
+        <OfficeWorld people={people.map(p=>({...p,state:status(p.dept,p.id)}))} running={running} resting={resting} selected={selected} onSelect={setSelected}/>
         <div className="hud"><div className="toast"><Activity size={13}/>{toast}</div><div className="tip">Drag = rotate · Wheel = zoom · Shift + drag = pan</div></div>
       </section>
 
