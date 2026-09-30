@@ -1030,7 +1030,7 @@ function Tablet({ color }: { color: string }) {
 }
 
 function Hand({ robot }: { robot: boolean }) {
-  return <mesh position={[0,-0.52,-0.34]} castShadow><sphereGeometry args={[0.095,10,10]} />><meshStandardMaterial color={robot ? "#d9e7ed" : "#efc1a3"}/></mesh>;
+  return <mesh position={[0,-0.52,-0.34]} castShadow><sphereGeometry args={[0.095,10,10]} /><meshStandardMaterial color={robot ? "#d9e7ed" : "#efc1a3"}/></mesh>;
 }
 
 function Shoes() {
