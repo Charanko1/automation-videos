@@ -10,7 +10,7 @@ import {
   RoundedBox,
   useHelper,
 } from "@react-three/drei";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import * as THREE from "three";
 import {
@@ -254,10 +254,10 @@ export default function OfficeWorld({
   const hitboxes = useRef(new Map<string, THREE.Object3D>());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const registerHitbox = (id: string, object: THREE.Object3D | null) => {
+  const registerHitbox = useCallback((id: string, object: THREE.Object3D | null) => {
     if (object) hitboxes.current.set(id, object);
     else hitboxes.current.delete(id);
-  };
+  }, []);
 
   useEffect(() => {
     if (!canvasElement) return;
