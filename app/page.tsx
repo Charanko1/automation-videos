@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {Activity, BarChart3, Bot, CalendarDays, Clapperboard, FolderKanban, Gauge, Image as ImageIcon, LayoutDashboard, Pause, Play, Settings, Sparkles, Users, Video, Volume2} from "lucide-react";
 import {useEffect, useMemo, useState} from "react";
 
@@ -56,7 +57,7 @@ export default function Page(){
   return <div className="app">
     <header className="top">
       <div className="brand"><div className="brandIcon"><Bot size={21}/></div><div><div className="brandTitle">AI OFFICE</div><div className="brandSub">YOUTUBE FACTORY</div></div></div>
-      <div className="nav"><span className="active"><LayoutDashboard size={14}/> Office</span><span><FolderKanban size={14}/> Projects</span><span><ImageIcon size={14}/> Library</span><span><BarChart3 size={14}/> Analytics</span><span><Settings size={14}/> Settings</span></div>
+      <nav className="nav"><Link className="nav-item active" href="/"><LayoutDashboard size={14}/> Office</Link><Link className="nav-item" href="/projects"><FolderKanban size={14}/> Projects</Link><Link className="nav-item" href="/library"><ImageIcon size={14}/> Library</Link><Link className="nav-item" href="/analytics"><BarChart3 size={14}/> Analytics</Link><Link className="nav-item" href="/settings"><Settings size={14}/> Settings</Link></nav>
       <div className="topRight">
         <div className="chip"><small>Daily Budget</small><b>Rp {cost.toLocaleString("id-ID")} <span style={{color:"#ffffff55"}}>/ 30K</span></b><div className="bar"><i style={{width:`${cost/300}%`}}/></div></div>
         <div className="chip"><small>Today</small><b><CalendarDays size={12} style={{verticalAlign:"-2px"}}/> 0 / 2 videos</b></div>
