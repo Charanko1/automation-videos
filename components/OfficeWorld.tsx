@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { OFFICE_CONFIG, BreakSpotId, getSeatTransform, WORKER_DESK_IDS } from "../lib/officeConfig";
 
 type Person = { id: string; name: string; role: string; provider: string; dept: string; color: string; state: string };
+type WorkerCommand = { workerId: string; type: "BREAK" | "RETURN"; nonce: number };
 type Mode = "WORKING" | "ANTICIPATE" | "STAND_UP" | "WALK" | "ARRIVE" | "ACTIVITY" | "WALK_BACK" | "SIT_DOWN";
 type MicroAction = "NONE" | "STRETCH" | "SCRATCH" | "DRINK" | "LEAN" | "SHIFT" | "LOOK";
 type BreakActivity = "SIT" | "SNACK" | "STAND";
@@ -190,9 +191,10 @@ function workingPose(
 
 /* ---------- root ---------- */
 export default function OfficeWorld({
-  people, running, resting, selected, onSelect,
+  people, running, resting, selected, onSelect, workerCommand,
 }: {
   people: Person[]; running: boolean; resting: boolean; selected: string | null; onSelect: (id: string | null) => void;
+  workerCommand: WorkerCommand | null;
 }) {
   const [debug, setDebug] = useState(false);
   useEffect(() => {
@@ -261,6 +263,7 @@ export default function OfficeWorld({
           running={running}
           globalResting={resting}
           debug={debug}
+          workerCommand={workerCommand}
         />
       ))}
 
@@ -701,9 +704,10 @@ function ColliderDebug() {
 }
 
 /* ---------- character ---------- */
-function WorkerCharacter({ person, workerIndex, selected, running, globalResting, debug, hovered, registerHitbox }: {
+function WorkerCharacter({ person, workerIndex, selected, running, globalResting, debug, hovered, registerHitbox, workerCommand }: {
   person: Person; workerIndex: number; selected: boolean; running: boolean; globalResting: boolean;
   debug: boolean; hovered: boolean; registerHitbox: (id: string, o: THREE.Object3D | null) => void;
+  workerCommand: WorkerCommand | null;
 }) {
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
@@ -730,6 +734,7 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
   const speed = useMemo(() => 1 - C.movement.speedVariance + random() * C.movement.speedVariance * 2, [random]);
   const mode = useRef<Mode>("WORKING");
   const modeTime = useRef(0);
+  const lastCommandNonce = useRef(0);
   const micro = useRef<{ type: MicroAction; started: number; duration: number; next: number }>({ type: "NONE", started: 0, duration: 0, next: 3 + random() * 5 });
   const plan = useRef<{ spot: BreakSpotId; duration: number; limit: boolean } | null>(null);
   const route = useRef<{ curve: THREE.CatmullRomCurve3; length: number } | null>(null);
@@ -766,7 +771,22 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
       plan.current = null;
     };
 
-    if ((globalResting || !running) && away && !shouldLimit) goHome();
+    if (workerCommand?.workerId === person.id && workerCommand.nonce !== lastCommandNonce.current) {
+      lastCommandNonce.current = workerCommand.nonce;
+      if (workerCommand.type === "RETURN") {
+        if (away || mode.current === "ANTICIPATE" || mode.current === "STAND_UP") goHome();
+      } else if (workerCommand.type === "BREAK" && !shouldLimit && mode.current === "WORKING") {
+        const preferred = chooseBreakSpot(workerIndex, Math.floor(elapsed / Math.max(1, C.movement.breakWaveInterval)));
+        const spot = reserveBreakSpot(person.id, preferred, false);
+        if (spot) {
+          plan.current = { spot, duration: lerp(C.movement.breakDurationMin, C.movement.breakDurationMax, 0.5), limit: false };
+          mode.current = "ANTICIPATE";
+          modeTime.current = 0;
+        }
+      }
+    }
+
+    if ((globalResting || !running) && (away || mode.current === "ANTICIPATE" || mode.current === "STAND_UP") && !shouldLimit) goHome();
     if (!shouldLimit && plan.current?.limit && away) goHome();
 
     const breakPlan = globalResting || !running ? null : getBreakPlan(workerIndex, elapsed, ext, random);
@@ -775,7 +795,7 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
       const spot = reserveBreakSpot(person.id, breakPlan?.preferred ?? chooseBreakSpot(workerIndex, 0), true);
       if (spot) { plan.current = { spot, duration: Infinity, limit: true }; mode.current = "ANTICIPATE"; modeTime.current = 0; }
     }
-    if (running && !selected && breakPlan && !shouldLimit && mode.current === "WORKING" && !plan.current) {
+    if (running && breakPlan && !shouldLimit && mode.current === "WORKING" && !plan.current) {
       const spot = reserveBreakSpot(person.id, breakPlan.preferred, false);
       if (spot) { plan.current = { spot, duration: breakPlan.duration, limit: false }; mode.current = "ANTICIPATE"; modeTime.current = 0; }
     }
