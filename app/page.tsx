@@ -78,17 +78,19 @@ export default function Page() {
       setScene((current) => {
         const next = Math.min(current + 1, totalScenes);
         setWorkspace((currentWorkspace) => {
-          const updated = currentWorkspace.projects.map((project) =>
+          const updated: Workspace["projects"] = currentWorkspace.projects.map((project): Workspace["projects"][number] =>
             project.id === activeProject.id
               ? {
                   ...project,
                   currentScene: next,
-                  status: next >= project.totalScenes ? "COMPLETED" : "PRODUCING",
+                  status: next >= project.totalScenes
+                    ? ("COMPLETED" as const)
+                    : ("PRODUCING" as const),
                   updatedAt: new Date().toISOString(),
                 }
               : project,
           );
-          const updatedWorkspace = { ...currentWorkspace, projects: updated };
+          const updatedWorkspace: Workspace = { ...currentWorkspace, projects: updated };
           writeWorkspace(updatedWorkspace);
           return updatedWorkspace;
         });
