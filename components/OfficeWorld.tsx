@@ -727,7 +727,10 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
 
   useEffect(() => {
     registerHitbox(person.id, hitbox.current);
-    return () => registerHitbox(person.id, null);
+    return () => {
+      releaseBreakSpot(person.id);
+      registerHitbox(person.id, null);
+    };
   }, [person.id, registerHitbox]);
 
   const random = useMemo(() => seededRandom((workerIndex + 13) * 9176), [workerIndex]);
@@ -774,7 +777,20 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
     if (workerCommand?.workerId === person.id && workerCommand.nonce !== lastCommandNonce.current) {
       lastCommandNonce.current = workerCommand.nonce;
       if (workerCommand.type === "RETURN") {
-        if (away || mode.current === "ANTICIPATE" || mode.current === "STAND_UP") goHome();
+        if (away) {
+          goHome();
+        } else if (mode.current === "ANTICIPATE" || mode.current === "STAND_UP") {
+          releaseBreakSpot(person.id);
+          plan.current = null;
+          route.current = null;
+          distance.current = 0;
+          r.position.copy(home);
+          c.position.copy(chairHome);
+          c.rotation.y = seat.rotationY;
+          r.rotation.y = seat.rotationY;
+          mode.current = "WORKING";
+          modeTime.current = 0;
+        }
       } else if (workerCommand.type === "BREAK" && !shouldLimit && mode.current === "WORKING") {
         const preferred = chooseBreakSpot(workerIndex, Math.floor(elapsed / Math.max(1, C.movement.breakWaveInterval)));
         const spot = reserveBreakSpot(person.id, preferred, false);
@@ -786,7 +802,7 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
       }
     }
 
-    if ((globalResting || !running) && (away || mode.current === "ANTICIPATE" || mode.current === "STAND_UP") && !shouldLimit) goHome();
+    if ((globalResting || !running) && away && !shouldLimit) goHome();
     if (!shouldLimit && plan.current?.limit && away) goHome();
 
     const breakPlan = globalResting || !running ? null : getBreakPlan(workerIndex, elapsed, ext, random);
