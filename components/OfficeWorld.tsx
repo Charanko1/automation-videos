@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   ContactShadows,
   Edges,
@@ -250,7 +250,6 @@ export default function OfficeWorld({
 
   const quality = OFFICE_CONFIG.quality[OFFICE_CONFIG.quality.preset];
   const labelLanes = useMemo(() => calculateLabelLanes(), []);
-  const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
   const hitboxes = useRef(new Map<string, THREE.Object3D>());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -259,99 +258,6 @@ export default function OfficeWorld({
     else hitboxes.current.delete(id);
   }, []);
 
-  useEffect(() => {
-    if (!canvasElement) return;
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    let raf = 0;
-    let latestMove: PointerEvent | null = null;
-    let downPoint: { x: number; y: number } | null = null;
-
-    const normalizedPointer = (event: PointerEvent) => {
-      const rect = canvasElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    };
-
-    const pick = (event: PointerEvent) => {
-      normalizedPointer(event);
-      raycaster.setFromCamera(pointer, (canvasElement.parentElement?.querySelector("canvas") ? (canvasElement as HTMLCanvasElement).__officeCamera : undefined) as THREE.Camera);
-    };
-
-    const getCamera = () => {
-      const cameraEl = canvasElement.parentElement?.querySelector("canvas");
-      return cameraEl ? null : null;
-    };
-
-    // Camera reference is attached by onCreated below.
-    const raycast = (event: PointerEvent) => {
-      const camera = (canvasElement as HTMLCanvasElement & { __officeCamera?: THREE.Camera }).__officeCamera;
-      if (!camera) return null;
-      normalizedPointer(event);
-      raycaster.setFromCamera(pointer, camera);
-      const objects = Array.from(hitboxes.current.values());
-      const intersections = raycaster.intersectObjects(objects, false);
-      return intersections.length ? intersections[0].object.userData.workerId as string | undefined : undefined;
-    };
-
-    const updateHover = () => {
-      raf = 0;
-      if (!latestMove) return;
-      const id = raycast(latestMove) ?? null;
-      setHoveredId(id);
-      canvasElement.style.cursor = id ? "pointer" : "grab";
-      latestMove = null;
-    };
-
-    const onMove = (event: PointerEvent) => {
-      latestMove = event;
-      if (!raf) raf = requestAnimationFrame(updateHover);
-    };
-
-    const onDown = (event: PointerEvent) => {
-      downPoint = { x: event.clientX, y: event.clientY };
-      canvasElement.style.cursor = "grabbing";
-    };
-
-    const onUp = (event: PointerEvent) => {
-      if (!downPoint) return;
-      const dx = event.clientX - downPoint.x;
-      const dy = event.clientY - downPoint.y;
-      const distance = Math.hypot(dx, dy);
-      const wasClick = distance <= 5;
-      downPoint = null;
-      if (wasClick) onSelect(raycast(event) ?? null);
-      canvasElement.style.cursor = raycast(event) ? "pointer" : "grab";
-    };
-
-    const onLeave = () => {
-      latestMove = null;
-      setHoveredId(null);
-      canvasElement.style.cursor = "grab";
-    };
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onSelect(null);
-    };
-
-    canvasElement.addEventListener("pointermove", onMove, { passive: true });
-    canvasElement.addEventListener("pointerdown", onDown, { passive: true });
-    canvasElement.addEventListener("pointerup", onUp, { passive: true });
-    canvasElement.addEventListener("pointercancel", onLeave, { passive: true });
-    canvasElement.addEventListener("pointerleave", onLeave, { passive: true });
-    window.addEventListener("keydown", onKey);
-
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      canvasElement.removeEventListener("pointermove", onMove);
-      canvasElement.removeEventListener("pointerdown", onDown);
-      canvasElement.removeEventListener("pointerup", onUp);
-      canvasElement.removeEventListener("pointercancel", onLeave);
-      canvasElement.removeEventListener("pointerleave", onLeave);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [canvasElement, onSelect]);
 
   return (
     <Canvas
@@ -362,8 +268,6 @@ export default function OfficeWorld({
       style={{ width: "100%", height: "100%", display: "block" }}
       onCreated={({ gl, scene }) => {
         gl.setPixelRatio(Math.min(window.devicePixelRatio, quality.dpr));
-        (gl.domElement as HTMLCanvasElement & { __officeCamera?: THREE.Camera }).__officeCamera = gl.camera;
-        setCanvasElement(gl.domElement);
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.05;
@@ -388,6 +292,7 @@ export default function OfficeWorld({
       <pointLight position={[-7, 7, 4]} intensity={12} distance={24} color="#9dcfff" />
       <pointLight position={[8, 5, -5]} intensity={9} distance={20} color="#ffd9ae" />
 
+      <InteractionController hitboxes={hitboxes} onSelect={onSelect} onHover={setHoveredId} />
       <OfficeEnvironment resting={resting} />
       <ContactShadows
         position={[0, OFFICE_CONFIG.visual.floorOffset, 0]}
@@ -433,6 +338,101 @@ export default function OfficeWorld({
       />
     </Canvas>
   );
+}
+
+function InteractionController({
+  hitboxes,
+  onSelect,
+  onHover,
+}: {
+  hitboxes: React.MutableRefObject<Map<string, THREE.Object3D>>;
+  onSelect: (id: string | null) => void;
+  onHover: (id: string | null) => void;
+}) {
+  const { gl, camera } = useThree();
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let hoverRaf = 0;
+    let pendingMove: PointerEvent | null = null;
+    let down: { x: number; y: number } | null = null;
+
+    const pointerToRay = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(1, rect.width);
+      const height = Math.max(1, rect.height);
+      pointer.x = ((event.clientX - rect.left) / width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+    };
+
+    const raycastWorker = (event: PointerEvent) => {
+      pointerToRay(event);
+      const targets = Array.from(hitboxes.current.values());
+      if (!targets.length) return null;
+      const hits = raycaster.intersectObjects(targets, false);
+      return hits[0]?.object.userData.workerId as string | undefined ?? null;
+    };
+
+    const applyHover = () => {
+      hoverRaf = 0;
+      if (!pendingMove) return;
+      const id = raycastWorker(pendingMove);
+      onHover(id);
+      canvas.style.cursor = id ? "pointer" : "grab";
+      pendingMove = null;
+    };
+
+    const onMove = (event: PointerEvent) => {
+      pendingMove = event;
+      if (!hoverRaf) hoverRaf = requestAnimationFrame(applyHover);
+    };
+
+    const onDown = (event: PointerEvent) => {
+      down = { x: event.clientX, y: event.clientY };
+      canvas.style.cursor = "grabbing";
+    };
+
+    const onUp = (event: PointerEvent) => {
+      if (!down) return;
+      const moved = Math.hypot(event.clientX - down.x, event.clientY - down.y);
+      down = null;
+      if (moved <= 5) onSelect(raycastWorker(event));
+      const id = raycastWorker(event);
+      canvas.style.cursor = id ? "pointer" : "grab";
+    };
+
+    const onLeave = () => {
+      pendingMove = null;
+      onHover(null);
+      canvas.style.cursor = "grab";
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onSelect(null);
+    };
+
+    canvas.addEventListener("pointermove", onMove, { passive: true });
+    canvas.addEventListener("pointerdown", onDown, { passive: true });
+    canvas.addEventListener("pointerup", onUp, { passive: true });
+    canvas.addEventListener("pointercancel", onLeave, { passive: true });
+    canvas.addEventListener("pointerleave", onLeave, { passive: true });
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      if (hoverRaf) cancelAnimationFrame(hoverRaf);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onLeave);
+      canvas.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [camera, gl, hitboxes, onHover, onSelect]);
+
+  return null;
 }
 
 function OfficeEnvironment({ resting }: { resting: boolean }) {
