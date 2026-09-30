@@ -54,8 +54,8 @@ const isIdleState = (s: string) => s.toLowerCase() === "idle";
 const isLimitState = (s: string) => s.toLowerCase() === "limit";
 const chooseBreakSpot = (i: number, wave: number) => BREAK_ORDER[(i + wave) % BREAK_ORDER.length];
 
-function reserveBreakSpot(workerId: string, preferred: BreakSpotId, limit: boolean) {
-  if (!limit && breakReservations.size >= C.movement.maxSimultaneousBreaks) return null;
+function reserveBreakSpot(workerId: string, preferred: BreakSpotId, limit: boolean, maxBreaks = C.movement.maxSimultaneousBreaks) {
+  if (!limit && breakReservations.size >= maxBreaks) return null;
   if (!breakReservations.has(preferred)) { breakReservations.set(preferred, workerId); return preferred; }
   for (const spot of BREAK_ORDER) {
     if (!breakReservations.has(spot)) { breakReservations.set(spot, workerId); return spot; }
@@ -193,10 +193,10 @@ function workingPose(
 
 /* ---------- root ---------- */
 export default function OfficeWorld({
-  people, running, resting, selected, onSelect, workerCommand,
+  people, running, resting, selected, onSelect, workerCommand, maxBreaks,
 }: {
   people: Person[]; running: boolean; resting: boolean; selected: string | null; onSelect: (id: string | null) => void;
-  workerCommand: WorkerCommand | null;
+  workerCommand: WorkerCommand | null; maxBreaks: number;
 }) {
   const [debug, setDebug] = useState(false);
   useEffect(() => {
@@ -266,6 +266,7 @@ export default function OfficeWorld({
           globalResting={resting}
           debug={debug}
           workerCommand={workerCommand}
+          maxBreaks={maxBreaks}
         />
       ))}
 
@@ -706,10 +707,10 @@ function ColliderDebug() {
 }
 
 /* ---------- character ---------- */
-function WorkerCharacter({ person, workerIndex, selected, running, globalResting, debug, hovered, registerHitbox, workerCommand }: {
+function WorkerCharacter({ person, workerIndex, selected, running, globalResting, debug, hovered, registerHitbox, workerCommand, maxBreaks }: {
   person: Person; workerIndex: number; selected: boolean; running: boolean; globalResting: boolean;
   debug: boolean; hovered: boolean; registerHitbox: (id: string, o: THREE.Object3D | null) => void;
-  workerCommand: WorkerCommand | null;
+  workerCommand: WorkerCommand | null; maxBreaks: number;
 }) {
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
@@ -795,7 +796,7 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
         }
       } else if (workerCommand.type === "BREAK" && !shouldLimit && mode.current === "WORKING") {
         const preferred = chooseBreakSpot(workerIndex, Math.floor(elapsed / Math.max(1, C.movement.breakWaveInterval)));
-        const spot = reserveBreakSpot(person.id, preferred, false);
+        const spot = reserveBreakSpot(person.id, preferred, false, maxBreaks);
         if (spot) {
           plan.current = { spot, duration: lerp(C.movement.breakDurationMin, C.movement.breakDurationMax, 0.5), limit: false };
           mode.current = "ANTICIPATE";
@@ -810,11 +811,11 @@ function WorkerCharacter({ person, workerIndex, selected, running, globalResting
     const breakPlan = globalResting || !running ? null : getBreakPlan(workerIndex, elapsed, ext, random);
 
     if (shouldLimit && mode.current === "WORKING" && !plan.current) {
-      const spot = reserveBreakSpot(person.id, breakPlan?.preferred ?? chooseBreakSpot(workerIndex, 0), true);
+      const spot = reserveBreakSpot(person.id, breakPlan?.preferred ?? chooseBreakSpot(workerIndex, 0), true, maxBreaks);
       if (spot) { plan.current = { spot, duration: Infinity, limit: true }; mode.current = "ANTICIPATE"; modeTime.current = 0; }
     }
     if (running && breakPlan && !shouldLimit && mode.current === "WORKING" && !plan.current) {
-      const spot = reserveBreakSpot(person.id, breakPlan.preferred, false);
+      const spot = reserveBreakSpot(person.id, breakPlan.preferred, false, maxBreaks);
       if (spot) { plan.current = { spot, duration: breakPlan.duration, limit: false }; mode.current = "ANTICIPATE"; modeTime.current = 0; }
     }
 
