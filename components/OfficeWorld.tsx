@@ -1090,11 +1090,15 @@ function WorkerCharacter({
 
     const statusText = isLimitState(external)
       ? (m === "ACTIVITY" ? "limit" : "walking")
-      : m === "WORKING"
-        ? "working"
-        : (m === "ACTIVITY" || m === "ARRIVE")
-          ? "break"
-          : "walking";
+      : globalResting
+        ? "resting"
+        : !running
+          ? "idle"
+          : m === "WORKING"
+            ? "working"
+            : (m === "ACTIVITY" || m === "ARRIVE")
+              ? "break"
+              : "walking";
 
     if (label.current) {
       const text = label.current.querySelector(".state-text");
