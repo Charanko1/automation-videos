@@ -12,13 +12,20 @@ export default function AnalyticsPage() {
     setWorkspace(readWorkspace());
   }, []);
 
-  const statCards = [
+  const stats = useMemo(() => {
     const completed = workspace.projects.filter((project) => project.status === "COMPLETED").length;
     const producing = workspace.projects.filter((project) => project.status === "PRODUCING").length;
     const scenes = workspace.projects.reduce((sum, project) => sum + project.currentScene, 0);
     const totalScenes = workspace.projects.reduce((sum, project) => sum + project.totalScenes, 0);
     return { completed, producing, scenes, totalScenes };
   }, [workspace]);
+
+  const statCards = [
+    { label: "Completed projects", value: stats.completed, icon: CheckCircle2 },
+    { label: "Active production", value: stats.producing, icon: PlayCircle },
+    { label: "Scenes processed", value: stats.scenes, icon: Activity },
+    { label: "Scene capacity", value: stats.totalScenes, icon: BarChart3 },
+  ];
 
   return <div className="app">
     <header className="top">
@@ -27,8 +34,8 @@ export default function AnalyticsPage() {
     </header>
     <div style={{padding:22,maxWidth:1200,width:"100%",margin:"0 auto",overflow:"auto"}}>
       <div className="page-head"><div><div className="eyebrow">OPERATIONS</div><h1 className="page-title">Analytics</h1><div className="muted">Metrics are derived from the projects stored in this workspace.</div></div></div>
-        {statCards.map(({ label, icon: Icon }) => <div className="card" key={label}><div className="title"><Icon size={14}/>{label}</div><div style={{fontSize:26,fontWeight:900}}>{label === "Completed projects" ? stats.completed : label === "Active production" ? stats.producing : label === "Scenes processed" ? stats.scenes : stats.totalScenes}</div><div className="muted">Workspace total</div></div>)}
-        {[["Completed projects", String(stats.completed), CheckCircle2], ["Active production", String(stats.producing), PlayCircle], ["Scenes processed", String(stats.scenes), Activity], ["Scene capacity", String(stats.totalScenes), BarChart3]].map(([label,value,Icon]) => <div className="card" key={label as string}><div className="title"><Icon size={14}/>{label}</div><div style={{fontSize:26,fontWeight:900}}>{value}</div><div className="muted">Workspace total</div></div>)}
+      <div className="analytics-grid">
+        {statCards.map(({ label, value, icon: Icon }) => <div className="card" key={label}><div className="title"><Icon size={14}/>{label}</div><div style={{fontSize:26,fontWeight:900}}>{value}</div><div className="muted">Workspace total</div></div>)}
       </div>
       <div className="card">
         <div className="title"><BarChart3 size={14}/> PROJECT PROGRESS</div>
@@ -39,7 +46,7 @@ export default function AnalyticsPage() {
       </div>
       <div className="card">
         <div className="title"><DollarSign size={14}/> COST TELEMETRY</div>
-        <div className="notice">Provider billing is intentionally not estimated on the client. Once server-side usage telemetry is connected, actual usage and cost can be displayed here.</div>
+        <div className="notice">Provider billing is not estimated on the client. Actual usage and cost should be supplied by the server integration.</div>
       </div>
     </div>
   </div>;
