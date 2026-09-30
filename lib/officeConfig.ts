@@ -55,15 +55,16 @@ export const OFFICE_CONFIG = {
 
   desks: {
     positions: {
-      rhea: [-3.0, 0, 2.2],
-      wri: [0, 0, 2.2],
+      rhea: [-3.0, 0, 2.0],
+      wri: [0, 0, 2.0],
       dira: [0, 0, 6.25],
-      gemi: [3.0, 0, 2.2],
+      gemi: [3.0, 0, 2.0],
       gpt: [-1.5, 0, -0.65],
       vox: [1.5, 0, -0.65],
     } as Record<string, [number, number, number]>,
 
     rotationY: 0,
+    rotations: { rhea: Math.PI, wri: Math.PI, dira: 0, gemi: Math.PI, gpt: 0, vox: 0 } as Record<string, number>,
     chairOffsetZ: 1.02,
     chairPullOut: 0.58,
     chairWidth: 0.96,
@@ -214,12 +215,18 @@ export type SeatTransform = {
 
 export function getSeatTransform(desk: [number, number, number]): SeatTransform {
   const [x, y, z] = desk;
-  const seatZ = z + OFFICE_CONFIG.desks.chairOffsetZ;
+  const key = Object.entries(OFFICE_CONFIG.desks.positions).find(([, value]) => value[0] === x && value[2] === z)?.[0];
+  const rotationY = key ? OFFICE_CONFIG.desks.rotations[key] : OFFICE_CONFIG.desks.rotationY;
+  const dx = Math.sin(rotationY);
+  const dz = Math.cos(rotationY);
+  const chairDistance = OFFICE_CONFIG.desks.chairOffsetZ;
+  const pulledDistance = chairDistance + OFFICE_CONFIG.desks.chairPullOut;
+  const approachDistance = pulledDistance + OFFICE_CONFIG.desks.approachExtraZ;
   return {
-    seatPosition: [x, y, seatZ],
-    chairPosition: [x, y, seatZ],
-    pulledChairPosition: [x, y, seatZ + OFFICE_CONFIG.desks.chairPullOut],
-    approachPosition: [x, y, seatZ + OFFICE_CONFIG.desks.chairPullOut + OFFICE_CONFIG.desks.approachExtraZ],
-    rotationY: OFFICE_CONFIG.desks.rotationY,
+    seatPosition: [x, y, z + 0.04],
+    chairPosition: [x + dx * chairDistance, y, z + dz * chairDistance],
+    pulledChairPosition: [x + dx * pulledDistance, y, z + dz * pulledDistance],
+    approachPosition: [x + dx * approachDistance, y, z + dz * approachDistance],
+    rotationY,
   };
 }
