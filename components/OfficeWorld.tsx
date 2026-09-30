@@ -230,11 +230,13 @@ export default function OfficeWorld({
   running,
   resting,
   selected,
+  onSelect,
 }: {
   people: Person[];
   running: boolean;
   resting: boolean;
-  selected: string;
+  selected: string | null;
+  onSelect: (id: string | null) => void;
 }) {
   const [debug, setDebug] = useState(false);
 
@@ -248,6 +250,108 @@ export default function OfficeWorld({
 
   const quality = OFFICE_CONFIG.quality[OFFICE_CONFIG.quality.preset];
   const labelLanes = useMemo(() => calculateLabelLanes(), []);
+  const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
+  const hitboxes = useRef(new Map<string, THREE.Object3D>());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const registerHitbox = (id: string, object: THREE.Object3D | null) => {
+    if (object) hitboxes.current.set(id, object);
+    else hitboxes.current.delete(id);
+  };
+
+  useEffect(() => {
+    if (!canvasElement) return;
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let raf = 0;
+    let latestMove: PointerEvent | null = null;
+    let downPoint: { x: number; y: number } | null = null;
+
+    const normalizedPointer = (event: PointerEvent) => {
+      const rect = canvasElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    };
+
+    const pick = (event: PointerEvent) => {
+      normalizedPointer(event);
+      raycaster.setFromCamera(pointer, (canvasElement.parentElement?.querySelector("canvas") ? (canvasElement as HTMLCanvasElement).__officeCamera : undefined) as THREE.Camera);
+    };
+
+    const getCamera = () => {
+      const cameraEl = canvasElement.parentElement?.querySelector("canvas");
+      return cameraEl ? null : null;
+    };
+
+    // Camera reference is attached by onCreated below.
+    const raycast = (event: PointerEvent) => {
+      const camera = (canvasElement as HTMLCanvasElement & { __officeCamera?: THREE.Camera }).__officeCamera;
+      if (!camera) return null;
+      normalizedPointer(event);
+      raycaster.setFromCamera(pointer, camera);
+      const objects = Array.from(hitboxes.current.values());
+      const intersections = raycaster.intersectObjects(objects, false);
+      return intersections.length ? intersections[0].object.userData.workerId as string | undefined : undefined;
+    };
+
+    const updateHover = () => {
+      raf = 0;
+      if (!latestMove) return;
+      const id = raycast(latestMove) ?? null;
+      setHoveredId(id);
+      canvasElement.style.cursor = id ? "pointer" : "grab";
+      latestMove = null;
+    };
+
+    const onMove = (event: PointerEvent) => {
+      latestMove = event;
+      if (!raf) raf = requestAnimationFrame(updateHover);
+    };
+
+    const onDown = (event: PointerEvent) => {
+      downPoint = { x: event.clientX, y: event.clientY };
+      canvasElement.style.cursor = "grabbing";
+    };
+
+    const onUp = (event: PointerEvent) => {
+      if (!downPoint) return;
+      const dx = event.clientX - downPoint.x;
+      const dy = event.clientY - downPoint.y;
+      const distance = Math.hypot(dx, dy);
+      const wasClick = distance <= 5;
+      downPoint = null;
+      if (wasClick) onSelect(raycast(event) ?? null);
+      canvasElement.style.cursor = raycast(event) ? "pointer" : "grab";
+    };
+
+    const onLeave = () => {
+      latestMove = null;
+      setHoveredId(null);
+      canvasElement.style.cursor = "grab";
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onSelect(null);
+    };
+
+    canvasElement.addEventListener("pointermove", onMove, { passive: true });
+    canvasElement.addEventListener("pointerdown", onDown, { passive: true });
+    canvasElement.addEventListener("pointerup", onUp, { passive: true });
+    canvasElement.addEventListener("pointercancel", onLeave, { passive: true });
+    canvasElement.addEventListener("pointerleave", onLeave, { passive: true });
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      canvasElement.removeEventListener("pointermove", onMove);
+      canvasElement.removeEventListener("pointerdown", onDown);
+      canvasElement.removeEventListener("pointerup", onUp);
+      canvasElement.removeEventListener("pointercancel", onLeave);
+      canvasElement.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [canvasElement, onSelect]);
 
   return (
     <Canvas
@@ -258,6 +362,8 @@ export default function OfficeWorld({
       style={{ width: "100%", height: "100%", display: "block" }}
       onCreated={({ gl, scene }) => {
         gl.setPixelRatio(Math.min(window.devicePixelRatio, quality.dpr));
+        (gl.domElement as HTMLCanvasElement & { __officeCamera?: THREE.Camera }).__officeCamera = gl.camera;
+        setCanvasElement(gl.domElement);
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.05;
@@ -299,6 +405,8 @@ export default function OfficeWorld({
           person={person}
           workerIndex={index}
           selected={selected === person.id}
+          hovered={hoveredId === person.id}
+          registerHitbox={registerHitbox}
           running={running}
           globalResting={resting}
           labelLane={labelLanes[person.id] ?? 0}
@@ -653,6 +761,8 @@ function WorkerCharacter({
   globalResting,
   labelLane,
   debug,
+  hovered,
+  registerHitbox,
 }: {
   person: Person;
   workerIndex: number;
@@ -661,6 +771,8 @@ function WorkerCharacter({
   globalResting: boolean;
   labelLane: number;
   debug: boolean;
+  hovered: boolean;
+  registerHitbox: (id: string, object: THREE.Object3D | null) => void;
 }) {
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
@@ -672,6 +784,12 @@ function WorkerCharacter({
   const legR = useRef<THREE.Group>(null);
   const label = useRef<HTMLDivElement>(null);
   const ring = useRef<THREE.Mesh>(null);
+  const hitbox = useRef<THREE.Mesh>(null);
+
+  useEffect(() => {
+    registerHitbox(person.id, hitbox.current);
+    return () => registerHitbox(person.id, null);
+  }, [person.id, registerHitbox]);
 
   const random = useMemo(() => seededRandom((workerIndex + 13) * 9176), [workerIndex]);
   const speed = useMemo(
@@ -936,15 +1054,25 @@ function WorkerCharacter({
     <group>
       <OfficeChair refObj={chair} position={chairHome} rotationY={seat.rotationY} />
       <group ref={root} position={home} rotation={[0, seat.rotationY, 0]}>
+        <mesh
+          ref={hitbox}
+          userData={{ workerId: person.id }}
+          position={[0, 1.10, 0]}
+          visible
+          renderOrder={999}
+        >
+          <boxGeometry args={[1.12, 2.38, 0.88]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
         <group ref={body}>
           <RoundedBox args={[0.86, 0.74, 0.60]} radius={0.11} smoothness={3} position={[0, 1.04, 0]} castShadow>
             <meshStandardMaterial color={person.color} roughness={0.68} />
-            <Edges color={person.color} threshold={25} lineWidth={0.9} />
+            <Edges color={hovered || selected ? "#ffffff" : person.color} threshold={25} lineWidth={selected ? 1.8 : hovered ? 1.35 : 0.9} />
           </RoundedBox>
           <group ref={head} position={[0,0,0]}>
             <RoundedBox args={[0.66,0.70,0.64]} radius={0.17} smoothness={4} position={[0,1.76,0]} castShadow>
               <meshStandardMaterial color={person.id === "gpt" ? "#d9e7ed" : "#efc2a5"} roughness={0.78}/>
-              <Edges color="#eff5ff" threshold={32} lineWidth={0.8}/>
+              <Edges color={hovered || selected ? "#ffffff" : "#eff5ff"} threshold={32} lineWidth={selected ? 1.8 : hovered ? 1.35 : 0.8}/>
             </RoundedBox>
             <Hair id={person.id}/>
             <Face robot={person.id === "gpt"}/>
@@ -972,11 +1100,11 @@ function WorkerCharacter({
 
         <mesh ref={ring} position={[0, OFFICE_CONFIG.visual.selectedRingY, 0]} rotation={[-Math.PI/2,0,0]}>
           <ringGeometry args={[0.92,1.06,40]}/>
-          <meshBasicMaterial color={person.color} transparent opacity={0.50} depthWrite={false}/>
+          <meshBasicMaterial color={person.color} transparent opacity={selected ? 0.72 : 0.25} depthWrite={false}/>
         </mesh>
 
         <Html center position={[0, OFFICE_CONFIG.visual.labelBaseHeight + labelLane * OFFICE_CONFIG.visual.labelLaneStep + (person.id === "dira" ? 0.34 : 0), 0]} distanceFactor={11}>
-          <div ref={label} className={`tag ${selected ? "sel" : ""}`}>
+          <div ref={label} className={`tag ${selected ? "sel" : ""} ${hovered ? "hovered" : ""}`}>
             <b>{person.name}</b>
             <small>{person.role}</small>
             <em><i className="state-dot" style={{background:person.color}}/><span className="state-text">working</span></em>
