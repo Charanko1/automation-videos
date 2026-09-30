@@ -871,7 +871,21 @@ function WorkerCharacter({
     modeTime.current += delta;
 
     const shouldLimit = isLimitState(external);
-    const breakPlan = getBreakPlan(workerIndex, elapsed, external, random);
+
+    // Rest/stop is a hard movement boundary: an agent already away from the
+    // desk must finish its return path instead of remaining stranded in the lounge.
+    if ((globalResting || !running) && mode.current !== "WORKING" && mode.current !== "SIT_DOWN" && !shouldLimit) {
+      releaseBreakSpot(person.id);
+      route.current = buildReturnCurve(root.current.position.clone(), person.id);
+      distance.current = 0;
+      mode.current = "WALK_BACK";
+      modeTime.current = 0;
+      plan.current = null;
+    }
+
+    const breakPlan = globalResting || !running
+      ? null
+      : getBreakPlan(workerIndex, elapsed, external, random);
 
     if (shouldLimit && mode.current === "WORKING" && !plan.current) {
       const reserved = reserveBreakSpot(person.id, breakPlan?.preferred ?? "window");
