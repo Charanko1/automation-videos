@@ -11,7 +11,7 @@ import {
   useHelper,
 } from "@react-three/drei";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
+import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import {
   OFFICE_CONFIG,
@@ -345,7 +345,7 @@ function InteractionController({
   onSelect,
   onHover,
 }: {
-  hitboxes: React.MutableRefObject<Map<string, THREE.Object3D>>;
+  hitboxes: MutableRefObject<Map<string, THREE.Object3D>>;
   onSelect: (id: string | null) => void;
   onHover: (id: string | null) => void;
 }) {
@@ -798,6 +798,8 @@ function WorkerCharacter({
   );
   const mode = useRef<Mode>("WORKING");
   const modeTime = useRef(0);
+  useHelper(debug ? hitbox : false, THREE.BoxHelper, "#ff3d66");
+
   const micro = useRef<{type: MicroAction; started: number; duration: number; next: number}>({
     type: "NONE",
     started: 0,
@@ -851,6 +853,7 @@ function WorkerCharacter({
     if (
       running &&
       breakPlan &&
+      person.id !== selected &&
       !shouldLimit &&
       mode.current === "WORKING" &&
       !plan.current
