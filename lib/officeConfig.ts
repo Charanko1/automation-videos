@@ -1,68 +1,149 @@
-// Single source of truth for office geometry + animation tuning.
+// AI Office world configuration.
 // Coordinate convention:
-// - World UP = +Y
-// - Worker/desk FRONT = -Z (toward the monitor)
-// - Therefore a seated worker faces rotationY = PI.
-// - All desks stay rotationY = 0.
+//   +Y = up
+//   -Z = worker/desk FRONT (monitor side)
+//   +Z = worker/desk BACK (chair backrest side)
+// All desks and chairs use rotationY = 0. Workers also face -Z.
 
 export const OFFICE_CONFIG = {
+  quality: {
+    preset: "high" as "low" | "high",
+    high: {
+      dpr: 1.35,
+      shadowMap: 1024,
+      contactResolution: 128,
+      contactFrames: Infinity,
+    },
+    low: {
+      dpr: 1,
+      shadowMap: 512,
+      contactResolution: 64,
+      contactFrames: 30,
+    },
+  },
+
   room: {
-    width: 30,
-    depth: 23,
-    floorY: -0.06,
-    wallHeight: 7.5,
-    backWallZ: -11.25,
+    width: 28,
+    depth: 21,
+    wallHeight: 7.6,
+    backWallZ: -10.5,
+    frontWallZ: 10.5,
+    leftWallX: -14,
+    rightWallX: 14,
+    floorY: 0,
   },
 
   workZone: {
-    centerZ: 0.45,
-    rowZ: [3.25, -3.15] as [number, number],
-    x: [-7.8, 0, 7.8] as [number, number, number],
-    corridorFrontZ: 5.45,
-    corridorBetweenZ: 0.05,
-    deskWidth: 2.55,
-    deskDepth: 1.18,
+    team: {
+      topZ: 2.2,
+      bottomZ: -0.65,
+      xTop: [-3.0, 0, 3.0] as [number, number, number],
+      xBottom: [-1.5, 1.5] as [number, number],
+    },
+    head: {
+      x: 0,
+      z: 6.25,
+    },
+    desk: {
+      width: 2.55,
+      depth: 1.18,
+      headWidth: 2.90,
+      headDepth: 1.30,
+      topY: 1.45,
+    },
   },
 
   desks: {
+    positions: {
+      rhea: [-3.0, 0, 2.2],
+      wri: [0, 0, 2.2],
+      dira: [0, 0, 6.25],
+      gemi: [3.0, 0, 2.2],
+      gpt: [-1.5, 0, -0.65],
+      vox: [1.5, 0, -0.65],
+    } as Record<string, [number, number, number]>,
+
+    rotationY: 0,
     chairOffsetZ: 1.02,
     chairPullOut: 0.58,
-    chairTurn: 0.10,
-    approachExtraZ: 0.72,
-    positions: {
-      rhea: [-7.8, 0, 3.25],
-      wri: [0, 0, 3.25],
-      dira: [7.8, 0, 3.25],
-      gemi: [-7.8, 0, -3.15],
-      gpt: [0, 0, -3.15],
-      vox: [7.8, 0, -3.15],
-    } as Record<string, [number, number, number]>,
+    chairWidth: 0.96,
+    chairSeatDepth: 0.78,
+    chairSeatHeight: 0.64,
+    chairBackHeight: 1.10,
+    approachExtraZ: 0.78,
+    sittingDepth: 0.04,
+  },
+
+  navigation: {
+    mainCorridorZ: 8.35,
+    loungeCorridorX: 12.0,
+    loungeRearZ: -5.35,
+    doorPosition: [12.0, 0, 9.55] as [number, number, number],
+
+    obstaclePadding: 0.22,
+    characterRadius: 0.46,
+
+    // Collider extents used by the debug view and route design.
+    staticObstacles: [
+      { id: "shelf", min: [-12.9, -9.2] as [number, number], max: [-11.2, -7.1] as [number, number] },
+      { id: "printer", min: [-12.8, -5.8] as [number, number], max: [-11.3, -4.2] as [number, number] },
+      { id: "sofa", min: [3.5, -9.05] as [number, number], max: [8.9, -8.0] as [number, number] },
+      { id: "snacks", min: [9.15, -7.9] as [number, number], max: [10.15, -6.4] as [number, number] },
+      { id: "beanbagA", min: [1.7, -8.95] as [number, number], max: [2.8, -7.85] as [number, number] },
+      { id: "beanbagB", min: [2.45, -10.0] as [number, number], max: [3.55, -8.9] as [number, number] },
+    ],
   },
 
   lounge: {
-    center: [6.4, 0, -8.35] as [number, number, number],
-    size: [9.8, 5.0] as [number, number],
-    sideCorridorX: 11.45,
-    rearWalkZ: -8.15,
+    center: [6.4, 0, -7.55] as [number, number, number],
+    size: [9.4, 4.9] as [number, number],
     sofa: {
-      left: [4.55, 0, -8.55] as [number, number, number],
-      right: [6.25, 0, -8.55] as [number, number, number],
+      left: [4.55, 0, -8.53] as [number, number, number],
+      right: [6.55, 0, -8.53] as [number, number, number],
     },
-    snacks: [10.15, 0, -7.15] as [number, number, number],
-    window: [7.6, 0, -9.75] as [number, number, number],
-    beanbagA: [2.15, 0, -8.25] as [number, number, number],
-    beanbagB: [2.55, 0, -9.55] as [number, number, number],
+    snacks: [9.60, 0, -7.18] as [number, number, number],
+    window: [7.55, 0, -9.68] as [number, number, number],
+    beanbagA: [2.25, 0, -8.40] as [number, number, number],
+    beanbagB: [3.05, 0, -9.48] as [number, number, number],
+    coffeeTable: [5.70, 0, -7.30] as [number, number, number],
+  },
+
+  decor: {
+    board: [-6.0, 5.05, -10.27] as [number, number, number],
+    shelf: [-12.05, 0, -8.15] as [number, number, number],
+    printer: [-12.05, 0, -5.00] as [number, number, number],
+    server: [11.95, 0, 2.4] as [number, number, number],
+    plants: [
+      [-10.8, 0, 6.9] as [number, number, number],
+      [8.5, 0, 5.9] as [number, number, number],
+      [10.7, 0, -9.3] as [number, number, number],
+    ],
+  },
+
+  idle: {
+    breathingHz: 0.24,
+    breathingAmplitude: 0.026,
+    headTurnAmplitude: 0.22,
+    headNodAmplitude: 0.06,
+    typingSpeed: 6.0,
+    typingAmplitude: 0.045,
+    microMinSeconds: 4,
+    microMaxSeconds: 12,
+    probabilities: {
+      stretch: 0.18,
+      scratch: 0.12,
+      drink: 0.16,
+      lean: 0.19,
+      shift: 0.18,
+      look: 0.17,
+    },
   },
 
   movement: {
-    walkSpeed: 1.82,
+    walkSpeed: 1.78,
     speedVariance: 0.12,
-    turnDamping: 9.5,
-    positionDamping: 11,
-    separationRadius: 0.95,
-    separationStrength: 0.34,
-    waypointRadius: 0.11,
-    pathSamples: 24,
+    turnDamping: 8.5,
+    positionDamping: 10.5,
 
     anticipateDuration: 0.42,
     standUpDuration: 0.92,
@@ -71,59 +152,42 @@ export const OFFICE_CONFIG = {
 
     breakDurationMin: 5,
     breakDurationMax: 12,
-
-    firstBreakDelay: 10,
-    breakWaveInterval: 26,
+    firstBreakDelay: 13,
+    breakWaveInterval: 30,
     breakStartSpacing: 7,
+
     maxSimultaneousBreaks: 2,
-  },
-
-  idle: {
-    breathingHz: 0.24,
-    breathingAmplitude: 0.026,
-    headTurnAmplitude: 0.22,
-    headNodAmplitude: 0.06,
-    typingSpeed: 6.1,
-    typingAmplitude: 0.040,
-    microMinSeconds: 4,
-    microMaxSeconds: 12,
-
-    probabilities: {
-      stretch: 0.18,
-      scratch: 0.13,
-      drink: 0.15,
-      lean: 0.19,
-      shift: 0.18,
-      look: 0.17,
-    },
+    separationRadius: 0.95,
+    separationStrength: 0.40,
   },
 
   walking: {
-    strideSpeed: 9.4,
-    footSwing: 0.54,
+    strideSpeed: 9.2,
+    footSwing: 0.52,
     armSwing: 0.30,
     bobAmplitude: 0.038,
-    lean: 0.07,
+    lean: 0.065,
     accelerationFraction: 0.16,
     decelerationFraction: 0.20,
   },
 
   visual: {
     monitorPulseSpeed: 2.6,
-    cursorSpeed: 0.72,
-    labelHeight: 3.02,
+    cursorSpeed: 0.65,
+    labelBaseHeight: 3.05,
+    labelLaneStep: 0.34,
     selectedRingY: 0.022,
+    floorOffset: 0.018,
   },
 
   easing: {
-    smooth: (t: number) => t * t * (3 - 2 * t),
-    smoother: (t: number) => {
-      const x = Math.min(1, Math.max(0, t));
-      return x * x * x * (x * (x * 6 - 15) + 10);
-    },
     easeInOut: (t: number) => {
       const x = Math.min(1, Math.max(0, t));
       return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    },
+    smoother: (t: number) => {
+      const x = Math.min(1, Math.max(0, t));
+      return x * x * x * (x * (x * 6 - 15) + 10);
     },
     easeOutBack: (t: number) => {
       const x = Math.min(1, Math.max(0, t));
@@ -138,6 +202,8 @@ export const WORKER_DESK_IDS = ["rhea", "wri", "dira", "gemi", "gpt", "vox"] as 
 export type WorkerDeskId = typeof WORKER_DESK_IDS[number];
 export type BreakSpotId = "sofaLeft" | "sofaRight" | "snacks" | "window";
 
+export const WORK_ZONE_IDS = ["rhea", "wri", "gemi", "gpt", "vox"] as const;
+
 export type SeatTransform = {
   seatPosition: [number, number, number];
   chairPosition: [number, number, number];
@@ -146,8 +212,6 @@ export type SeatTransform = {
   rotationY: number;
 };
 
-// All desks use this helper. The chair is rotated PI so its local front (+Z)
-// points toward the monitor at world -Z and the backrest stays behind the worker.
 export function getSeatTransform(desk: [number, number, number]): SeatTransform {
   const [x, y, z] = desk;
   const seatZ = z + OFFICE_CONFIG.desks.chairOffsetZ;
@@ -156,6 +220,6 @@ export function getSeatTransform(desk: [number, number, number]): SeatTransform 
     chairPosition: [x, y, seatZ],
     pulledChairPosition: [x, y, seatZ + OFFICE_CONFIG.desks.chairPullOut],
     approachPosition: [x, y, seatZ + OFFICE_CONFIG.desks.chairPullOut + OFFICE_CONFIG.desks.approachExtraZ],
-    rotationY: Math.PI,
+    rotationY: OFFICE_CONFIG.desks.rotationY,
   };
 }
