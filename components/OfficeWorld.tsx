@@ -102,8 +102,10 @@ function buildRoute(start: THREE.Vector3, id: string, spotId: BreakSpotId, back:
   return { curve, length: curve.getLength() };
 }
 
-function colliderList() {
-  const result = C.navigation.staticObstacles.map((c) => ({
+type Collider = { id: string; minX: number; maxX: number; minZ: number; maxZ: number };
+
+function colliderList(): Collider[] {
+  const result: Collider[] = C.navigation.staticObstacles.map((c) => ({
     id: c.id, minX: c.min[0], maxX: c.max[0], minZ: c.min[1], maxZ: c.max[1],
   }));
   for (const id of Object.keys(DESKS)) {
