@@ -195,7 +195,7 @@ export default function Page() {
       </aside>
 
       <section className="world">
-        <OfficeWorld people={people.map((person) => ({ ...person, state: status(person.dept) }))} running={running} resting={resting} selected={selected} onSelect={setSelected} workerCommand={workerCommand}/>
+        <OfficeWorld people={people.map((person) => ({ ...person, state: status(person.dept) }))} running={running} resting={resting} selected={selected} onSelect={setSelected} workerCommand={workerCommand} maxBreaks={workspace.settings.maxBreaks}/>
         <div className="hud"><div className="toast"><Activity size={13}/>{toast}</div><div className="tip">Drag = rotate · Wheel = zoom · Shift + drag = pan</div></div>
       </section>
 
