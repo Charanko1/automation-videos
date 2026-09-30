@@ -8,6 +8,7 @@ import {
   OrbitControls,
   PerspectiveCamera,
   RoundedBox,
+  useHelper,
 } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -694,6 +695,9 @@ function WorkerCharacter({
   const chairHome = useMemo(() => new THREE.Vector3(...seat.chairPosition), [seat]);
   const pulledChair = useMemo(() => new THREE.Vector3(...seat.pulledChairPosition), [seat]);
   const approach = useMemo(() => new THREE.Vector3(...seat.approachPosition), [seat]);
+
+  useHelper(debug ? root : false, THREE.BoxHelper, "#ffe066");
+  useHelper(debug ? chair : false, THREE.BoxHelper, "#ff5d76");
 
   useFrame((state, delta) => {
     if (!root.current || !body.current || !head.current || !chair.current) return;
