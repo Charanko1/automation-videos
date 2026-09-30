@@ -23,26 +23,26 @@ export const OFFICE_CONFIG = {
   },
 
   room: {
-    width: 28,
-    depth: 21,
-    wallHeight: 7.6,
-    backWallZ: -10.5,
-    frontWallZ: 10.5,
-    leftWallX: -14,
-    rightWallX: 14,
+    width: 30,
+    depth: 23,
+    wallHeight: 7.8,
+    backWallZ: -11.5,
+    frontWallZ: 11.5,
+    leftWallX: -15,
+    rightWallX: 15,
     floorY: 0,
   },
 
   workZone: {
     team: {
-      topZ: 2.2,
-      bottomZ: -0.65,
+      topZ: 2.0,
+      bottomZ: -0.7,
       xTop: [-3.0, 0, 3.0] as [number, number, number],
       xBottom: [-1.5, 1.5] as [number, number],
     },
     head: {
       x: 0,
-      z: 6.25,
+      z: 6.6,
     },
     desk: {
       width: 2.55,
@@ -55,12 +55,12 @@ export const OFFICE_CONFIG = {
 
   desks: {
     positions: {
-      rhea: [-3.0, 0, 2.0],
-      wri: [0, 0, 2.0],
-      dira: [0, 0, 6.25],
-      gemi: [3.0, 0, 2.0],
-      gpt: [-1.5, 0, -0.65],
-      vox: [1.5, 0, -0.65],
+      rhea: [-3.0, 0, 1.9],
+      wri: [0, 0, 1.9],
+      dira: [0, 0, 6.6],
+      gemi: [3.0, 0, 1.9],
+      gpt: [-1.5, 0, -0.75],
+      vox: [1.5, 0, -0.75],
     } as Record<string, [number, number, number]>,
 
     rotationY: 0,
@@ -76,10 +76,10 @@ export const OFFICE_CONFIG = {
   },
 
   navigation: {
-    mainCorridorZ: 8.35,
-    loungeCorridorX: 12.0,
-    loungeRearZ: -5.35,
-    doorPosition: [12.0, 0, 9.55] as [number, number, number],
+    mainCorridorZ: 8.75,
+    loungeCorridorX: 11.8,
+    loungeRearZ: -6.15,
+    doorPosition: [12.7, 0, 10.55] as [number, number, number],
 
     obstaclePadding: 0.22,
     characterRadius: 0.46,
@@ -115,9 +115,9 @@ export const OFFICE_CONFIG = {
     printer: [-12.05, 0, -5.00] as [number, number, number],
     server: [11.95, 0, 2.4] as [number, number, number],
     plants: [
-      [-10.8, 0, 6.9] as [number, number, number],
-      [8.5, 0, 5.9] as [number, number, number],
-      [10.7, 0, -9.3] as [number, number, number],
+      [-11.8, 0, 7.2] as [number, number, number],
+      [9.8, 0, 6.0] as [number, number, number],
+      [11.3, 0, -9.8] as [number, number, number],
     ],
   },
 
