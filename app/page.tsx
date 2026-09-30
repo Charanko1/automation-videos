@@ -46,6 +46,15 @@ export default function Page(){
 
   const cost=Math.min(30000,6200+scene*180);
   const pct=Math.round(scene/30*100);
+  const toggleSelectedLimit=()=>{
+    if(!selected)return;
+    const next=!limited[selected];
+    setLimited(v=>({...v,[selected]:next}));
+    if(next)setLimitResetAt(v=>({...v,[selected]:Date.now()+90000}));
+    else setLimitResetAt(v=>{const n={...v};delete n[selected];return n;});
+    const name=people.find(p=>p.id===selected)?.name||"Worker";
+    setToast(name+" limit "+(next?"triggered":"reset")+".");
+  };
 
   const status=(dept:string,id?:string)=>{
     if(id && limited[id]) return "Limit";
@@ -102,7 +111,7 @@ export default function Page(){
           <button className="ctrl green" onClick={()=>{setRunning(true);setResting(false);setToast("Production started. Workers online.");}}><Play size={14}/> Start Production</button>
           <button className="ctrl blue" onClick={()=>{setResting(v=>!v);setToast(!resting?"REST MODE activated.":"Production resumed.")}}><Pause size={14}/> {resting?"Resume":"Pause / Rest"}</button>
           <button className="ctrl red" onClick={()=>{setRunning(false);setResting(false);setToast("Production stopped.");}}>■ Stop</button>
-          <button className="ctrl purple" onClick={()=>{setLimited(v=>({...v,[selected]:!v[selected]}));setToast(`${people.find(p=>p.id===selected)?.name} limit ${limited[selected]?"reset":"triggered"}.`);}}>{limited[selected]?"↻ Reset Limit":"⚠ Trigger Limit"}</button>
+          <button className="ctrl purple" disabled={!selected} onClick={toggleSelectedLimit}>{selected&&limited[selected]?"↻ Reset Limit":"⚠ Trigger Limit"}</button>
           <div className="stat" style={{marginTop:12}}><span>Current scene</span><b>{scene}/30</b></div>
           <div className="stat"><span>Daily cost</span><b>Rp {cost.toLocaleString("id-ID")}</b></div>
           <div className="stat"><span>Hard ceiling</span><b>Rp 30.000</b></div>
