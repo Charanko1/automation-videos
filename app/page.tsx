@@ -31,7 +31,30 @@ export default function Page(){
   const [limitResetAt,setLimitResetAt]=useState<Record<string,number>>({});
   const [now,setNow]=useState(Date.now());
 
-  useEffect(()=>{ const timer=setInterval(()=>setNow(Date.now()),1000); return()=>clearInterval(timer); },[]);
+  useEffect(()=>{
+    const timer=setInterval(()=>setNow(Date.now()),1000);
+    return()=>clearInterval(timer);
+  },[]);
+
+  // A mock provider quota must actually recover. Previously the countdown reached
+  // zero while the worker stayed permanently in the Limit state.
+  useEffect(()=>{
+    if(!Object.keys(limitResetAt).length)return;
+    const expired=Object.entries(limitResetAt).filter(([,resetAt])=>resetAt<=now).map(([id])=>id);
+    if(!expired.length)return;
+    setLimited(current=>{
+      const next={...current};
+      expired.forEach(id=>delete next[id]);
+      return next;
+    });
+    setLimitResetAt(current=>{
+      const next={...current};
+      expired.forEach(id=>delete next[id]);
+      return next;
+    });
+    const names=expired.map(id=>people.find(p=>p.id===id)?.name).filter(Boolean).join(", ");
+    if(names)setToast(names+" limit reset. Worker back online.");
+  },[now,limitResetAt]);
 
   useEffect(()=>{
     if(!running||resting||scene>=30)return;
