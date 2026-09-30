@@ -589,11 +589,11 @@ function Beanbag({ position }: { position: [number, number, number] }) {
 }
 
 function CoffeeTable({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh position={[0, 0.34, 0]} castShadow><cylinderGeometry args={[0.72,0.70,0.10,12}/><meshStandardMaterial color="#684b37" roughness={0.82}/></mesh><mesh position={[0,0.12,0]}><cylinderGeometry args={[0.10,0.14,0.43,10}/><meshStandardMaterial color="#4c3325"/></mesh></group>;
+  return <group position={position}><mesh position={[0, 0.34, 0]} castShadow><cylinderGeometry args={[0.72,0.70,0.10,12]} /><meshStandardMaterial color="#684b37" roughness={0.82}/></mesh><mesh position={[0,0.12,0]}><cylinderGeometry args={[0.10,0.14,0.43,10]} /><meshStandardMaterial color="#4c3325"/></mesh></group>;
 }
 
 function Plant({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh castShadow><cylinderGeometry args={[0.34,0.42,0.48,10}/><meshStandardMaterial color="#a66f47" roughness={0.96}/></mesh>{[-0.18,0,0.18].map((x,i)=><mesh key={i} position={[x,0.72,0.02]} rotation={[0,0,(i-1)*0.25]} castShadow><sphereGeometry args={[0.23,0.23,0.52,12}/><meshStandardMaterial color={["#63b579","#4aa66b","#7ac78a"][i]}/></mesh>)}</group>;
+  return <group position={position}><mesh castShadow><cylinderGeometry args={[0.34,0.42,0.48,10]} /><meshStandardMaterial color="#a66f47" roughness={0.96}/></mesh>{[-0.18,0,0.18].map((x,i)=><mesh key={i} position={[x,0.72,0.02]} rotation={[0,0,(i-1)*0.25]} castShadow><sphereGeometry args={[0.23,0.23,0.52,12}/><meshStandardMaterial color={["#63b579","#4aa66b","#7ac78a"][i]}/></mesh>)}</group>;
 }
 
 function Shelf({ position }: { position: [number, number, number] }) {
@@ -1030,7 +1030,7 @@ function Tablet({ color }: { color: string }) {
 }
 
 function Hand({ robot }: { robot: boolean }) {
-  return <mesh position={[0,-0.52,-0.34]} castShadow><sphereGeometry args={[0.095,10,10}/><meshStandardMaterial color={robot ? "#d9e7ed" : "#efc1a3"}/></mesh>;
+  return <mesh position={[0,-0.52,-0.34]} castShadow><sphereGeometry args={[0.095,10,10]} />><meshStandardMaterial color={robot ? "#d9e7ed" : "#efc1a3"}/></mesh>;
 }
 
 function Shoes() {
