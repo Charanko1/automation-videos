@@ -107,8 +107,19 @@ export default function Page(){
           <div className="stat"><span>Daily cost</span><b>Rp {cost.toLocaleString("id-ID")}</b></div>
           <div className="stat"><span>Hard ceiling</span><b>Rp 30.000</b></div>
         </div>
-        <div className="card"><div className="title"><Users size={14}/> Selected Worker</div>
-          {(()=>{const p=people.find(x=>x.id===selected)||people[0], st=status(p.dept,p.id);return <><div style={{display:"flex",gap:9,alignItems:"center"}}><div className="avatar" style={{background:`linear-gradient(145deg,${p.color},#fff)`}}>{p.name[0]}</div><div><div className="ename">{p.name}</div><div className="erole">{p.role}</div></div></div><div className="stat" style={{marginTop:10}}><span>Provider</span><b>{p.provider}</b></div><div className="stat"><span>State</span><b>{st}</b></div></>})()}
+        <div className="card worker-detail">
+          <div className="title"><Users size={14}/> Selected Worker</div>
+          {selected ? (()=>{const p=people.find(x=>x.id===selected); if(!p)return <div className="muted">Worker not found.</div>; const st=status(p.dept,p.id); const task=p.dept==="research"?(scene<4?"Finding trending topics":"Standing by"):p.dept==="script"?(scene<8?"Writing narrative":"Standing by"):p.dept==="director"?(scene<12?"Planning shots":"Standing by"):p.dept==="image"?(scene>=12&&scene<14?"Generating scene images":"Standing by"):p.dept==="video"?(scene>=14&&scene<18?"Animating scene":"Standing by"):p.dept==="tts"?(scene>=18&&scene<22?"Generating voice-over":"Standing by"):"Standing by"; const remaining=Math.max(0,(limitResetAt[p.id]||0)-now); const countdown=remaining?Math.ceil(remaining/1000)+"s":"—"; return <div>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}><div className="avatar avatar-lg" style={{background:"linear-gradient(145deg,"+p.color+",#fff)"}}>{p.name[0]}</div><div><div className="ename">{p.name}</div><div className="erole">{p.role}</div><div className="detail-provider">{p.provider}</div></div></div>
+            <div className="detail-status"><span className={"detail-pill "+st.toLowerCase()}>{st.toLowerCase()}</span><span className="muted">Scene {scene}/30</span></div>
+            <div className="detail-block"><div className="mini">Current task</div><div className="detail-value">{task}</div></div>
+            {st==="Limit"&&<div className="detail-block"><div className="mini">Mock reset</div><div className="detail-value">{countdown}</div></div>}
+            <div className="worker-actions">
+              <button className="worker-action amber" onClick={()=>setToast(p.name+" was asked to take a break (mock).")}>☕ Suruh istirahat</button>
+              <button className="worker-action" onClick={()=>setToast(p.name+" was called back to their desk (mock).")}>↩ Panggil ke meja</button>
+              <button className="worker-action purple" onClick={()=>{setLimited(v=>({...v,[p.id]:!v[p.id]})); if(!limited[p.id])setLimitResetAt(v=>({...v,[p.id]:Date.now()+90000})); else setLimitResetAt(v=>{const n={...v};delete n[p.id];return n;}); setToast(p.name+" limit "+(limited[p.id]?"reset":"triggered")+"." );}}>{limited[p.id]?"↻ Reset limit":"⚠ Picu limit"}</button>
+            </div>
+          </div>})() : <div className="empty-detail"><div className="empty-icon">⌁</div><div className="ename">No worker selected</div><div className="muted">Klik karakter di office 3D atau pilih employee di kiri.</div></div>}
         </div>
       </aside>
     </div>
