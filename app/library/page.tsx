@@ -83,7 +83,7 @@ export default function LibraryPage() {
 
       <div className="card">
         <div className="title">LOCAL RENDER NOTE</div>
-        <div className="notice">This library is populated from the local <b>public/generated</b> folder. The current renderer uses ChatGPT-generated text plus Windows Speech Synthesis and FFmpeg; it does not call external AI image, video, or TTS providers.</div>
+        <div className="notice">This library is populated from the local <b>public/generated</b> folder. The renderer uses ChatGPT-generated text, Cloudflare Workers AI scene images, Windows Speech Synthesis, and FFmpeg.</div>
       </div>
     </div>
   </div>;
