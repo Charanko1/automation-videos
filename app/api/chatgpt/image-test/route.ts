@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         : "Generate a single cinematic image of a futuristic office at night, realistic lighting, detailed environment, 16:9.";
 
     const modelsResponse = await fetch(MODELS_ENDPOINT, {
-      headers: { Authorization: \`Bearer \${credential.accessToken}\` },
+      headers: { Authorization: \`Bearer \__ACCESS_TOKEN__\` },
       cache: "no-store",
     });
     const modelsData = await modelsResponse.json().catch(() => ({}));
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     const response = await fetch(RESPONSES_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: \`Bearer \${credential.accessToken}\`,
+        Authorization: \`Bearer \__ACCESS_TOKEN__\`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
