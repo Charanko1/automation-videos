@@ -143,8 +143,13 @@ export default function SettingsPage() {
         {chatgptResult && <div className="notice" style={{marginTop:10,whiteSpace:"pre-wrap"}}>{chatgptResult}</div>}
         <div className="muted" style={{fontSize:11,marginTop:10}}>Run this test from <b>http://127.0.0.1:3000</b>. Credentials are stored only in a local ignored file during development.</div>
       </div>
-      <div className="card"><div className="title"><Shield size={14}/> PROVIDER CONFIGURATION</div>
-        {[[ "DeepSeek #1–#3","Research, script, and direction workers"],["Gemini","Image generation worker"],["Video provider","Animation worker"],["TTS provider","Voice generation worker"],["YouTube","Publishing integration"]].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>Server configuration required</span></div>)}
+      <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
+        {[
+          ["ChatGPT Go","Primary AI brain for research, scripts, direction, visual prompts, motion plans, and narration"],
+          ["Local renderer","Non-AI stage for assembling approved assets into the final video"],
+          ["YouTube","Publishing integration; not an AI provider"],
+        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "ChatGPT Go" ? "CONNECTED ABOVE" : "CONFIGURATION REQUIRED"}</span></div>)}
+        <div className="notice" style={{marginTop:10}}>This workspace is configured to use ChatGPT Go as its only external AI provider. The current Sign in with ChatGPT Responses API flow does not expose image generation, file search, Code Interpreter, native computer use, or other hosted AI tools, so media production stages must use local/non-AI processing unless OpenAI adds support for them.</div>
       </div>
       <div className="card"><div className="title"><Bell size={14}/> OPERATIONS POLICY</div>
         <div className="notice"><Check size={14}/> Provider limits should pause the affected queue on the server. The client Office view only reflects the state supplied by the production engine.</div>
