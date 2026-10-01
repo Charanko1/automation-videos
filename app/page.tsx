@@ -12,7 +12,7 @@ const people = [
   { id: "rhea", name: "Rhea", role: "Researcher", provider: "ChatGPT Go", dept: "research", color: "#73a5ff" },
   { id: "wri", name: "Wri", role: "Scriptwriter", provider: "ChatGPT Go", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Director", provider: "ChatGPT Go", dept: "director", color: "#c58aff" },
-  { id: "gemi", name: "Gemi", role: "Image Artist", provider: "ChatGPT Go", dept: "image", color: "#68dcae" },
+  { id: "gemi", name: "Gemi", role: "Image Artist", provider: "Cloudflare Workers AI", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "ChatGPT Go", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Narrator", provider: "ChatGPT Go", dept: "tts", color: "#ff8b94" },
 ];
@@ -27,6 +27,7 @@ const aiPhaseLabel: Record<string, string> = {
   RESEARCH: "Rhea · Researching",
   SCRIPT: "Wri · Writing",
   DIRECTOR: "Dira · Planning",
+  IMAGES: "Gemi · Generating scene images",
   COMPLETED: "Research + Script + Director complete",
   FAILED: "Pipeline failed",
 };
@@ -221,17 +222,75 @@ export default function Page() {
         throw new Error(directorData.error ?? "Director stage failed.");
       }
 
+      const directorScenes = Array.isArray(directorData.scenes) ? directorData.scenes : [];
+      if (directorScenes.length === 0) {
+        throw new Error("Dira returned no production scenes.");
+      }
+
+      updateActiveAI({
+        phase: "IMAGES",
+        director: directorData.text,
+        characterBible: directorData.characterBible ?? "",
+        imageAssets: [],
+        model: directorData.model ?? scriptData.model ?? researchData.model,
+        error: undefined,
+      });
+
+      updateActiveProject({
+        status: "PRODUCING",
+        currentScene: 0,
+        totalScenes: directorScenes.length,
+      });
+      setScene(0);
+      setToast(`Dira finished. Gemi is generating ${directorScenes.length} scene images with Cloudflare Workers AI.`);
+
+      const generatedAssets: NonNullable<AIProduction["imageAssets"]> = [];
+      for (let index = 0; index < directorScenes.length; index += 1) {
+        const scenePlan = directorScenes[index];
+        setToast(`Gemi · Scene ${index + 1}/${directorScenes.length} · Generating image…`);
+
+        const imageResponse = await fetch("/api/production/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: activeProject.id,
+            sceneId: scenePlan.sceneId,
+            prompt: scenePlan.visualPrompt,
+            characterBible: directorData.characterBible ?? "",
+          }),
+        });
+        const imageData = await imageResponse.json().catch(() => ({}));
+        if (!imageResponse.ok || !imageData.ok) {
+          throw new Error(imageData.error ?? `Image generation failed for ${scenePlan.sceneId}.`);
+        }
+
+        generatedAssets.push({
+          sceneId: scenePlan.sceneId,
+          assetUrl: imageData.assetUrl,
+          model: imageData.model,
+          narrationExcerpt: scenePlan.narrationExcerpt,
+          generatedAt: new Date().toISOString(),
+        });
+        updateActiveAI({
+          phase: "IMAGES",
+          imageAssets: [...generatedAssets],
+          error: undefined,
+        });
+      }
+
+      // AI pre-production is now complete: the project has a scene plan plus real image assets.
       updateActiveAI({
         phase: "COMPLETED",
+        imageAssets: generatedAssets,
         director: directorData.text,
         characterBible: directorData.characterBible ?? "",
         model: directorData.model ?? scriptData.model ?? researchData.model,
         error: undefined,
       });
 
-      // AI pre-production is complete, so the office automatically hands the project
-      // to the production loop instead of leaving it stuck at scene 0.
-      updateActiveProject({ status: "PRODUCING" });
+      // Hand the image-complete project to the normal production loop.
+      updateActiveProject({ status: "PRODUCING", currentScene: 0 });
+      setScene(0);
       setRunning(true);
       setResting(false);
       setToast("AI pipeline complete. Research → Script → Director → Production started.");
@@ -262,6 +321,7 @@ export default function Page() {
           script: activeProject.ai.script,
           director: activeProject.ai.director,
           model: activeProject.ai.model,
+          imageAssets: activeProject.ai.imageAssets ?? [],
         }),
       });
       const data = await response.json();
@@ -340,7 +400,7 @@ export default function Page() {
 
   const status = (dept: string) => {
     if (aiRunning) {
-      const aiStage = { research: "RESEARCH", script: "SCRIPT", director: "DIRECTOR" }[dept];
+      const aiStage = { research: "RESEARCH", script: "SCRIPT", director: "DIRECTOR", image: "IMAGES" }[dept];
       if (aiStage === aiPhase) return "Working";
       return "Idle";
     }
@@ -389,7 +449,7 @@ export default function Page() {
         })}
         <Link className="hire" href="/projects">+ Create Project</Link>
         <div className="card"><div className="mini">Active project</div><div className="projectName">{activeProject?.title ?? "No active project"}</div><div className="muted">{activeProject ? `${activeProject.type} · ${activeProject.totalScenes} scenes` : "Create a project to start production."}</div><div className="prog"><i style={{width:`${pct}%`}}/></div><div className="projectFoot"><span>Scene {scene}/{totalScenes}</span><b>{pct}%</b></div></div>
-        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "CHATGPT AI PIPELINE" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. ChatGPT Go is the only external AI provider configured for this office."}</div></div>
+        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "AI PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. ChatGPT Go handles research, script, and direction; Gemi uses Cloudflare Workers AI for scene images."}</div></div>
       </aside>
 
       <section className="world">
@@ -400,14 +460,22 @@ export default function Page() {
       <aside className="side right">
         <div className="card"><div className="title"><Gauge size={14}/> Production Pipeline</div>
           {pipe.map((item, i) => {
-            const done = activeProject ? i < stage && scene > 0 : false;
-            const active = Boolean(activeProject && running && i === stage);
+            const aiStageIndex = { RESEARCH: 0, SCRIPT: 1, DIRECTOR: 2, IMAGES: 3 }[aiPhase as "RESEARCH" | "SCRIPT" | "DIRECTOR" | "IMAGES"];
+            const done = activeProject
+              ? aiRunning
+                ? i < (aiStageIndex ?? -1)
+                : i < stage && scene > 0
+              : false;
+            const active = Boolean(
+              activeProject &&
+              ((aiRunning && i === aiStageIndex) || (running && i === stage))
+            );
             return <div className="pipelineRow" key={item[0]}><div className={`node ${done ? "done" : active ? "active" : ""}`}>{done ? "✓" : i + 1}</div><div><div className="pname">{item[0]}</div><div className="pdetail">{item[1]}</div></div></div>;
           })}
         </div>
 
         <div className="card"><div className="title"><Sparkles size={14}/> ChatGPT Go AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>Real plan-backed AI chain for the first three production roles: Research → Script → Director.</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT Go handles Research → Script → Director. Gemi then turns Dira&apos;s scene prompts into real 16:9 images with Cloudflare Workers AI.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Research → Script → Director"}</button>
@@ -419,6 +487,17 @@ export default function Page() {
           <details><summary className="mini">Research brief</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:220,overflow:"auto"}}>{activeProject.ai.research}</div></details>
           <details style={{marginTop:8}}><summary className="mini">Script</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:260,overflow:"auto"}}>{activeProject.ai.script}</div></details>
           <details style={{marginTop:8}}><summary className="mini">Director scene plan</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:280,overflow:"auto"}}>{activeProject.ai.director}</div></details>
+          {activeProject.ai.imageAssets && activeProject.ai.imageAssets.length > 0 && <div style={{marginTop:12}}>
+            <div className="mini" style={{marginBottom:8}}>Gemi scene images · {activeProject.ai.imageAssets.length}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
+              {activeProject.ai.imageAssets.map((asset) => (
+                <a key={asset.sceneId} href={asset.assetUrl} target="_blank" rel="noreferrer" style={{display:"block",textDecoration:"none"}}>
+                  <img src={asset.assetUrl} alt={asset.sceneId} style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",borderRadius:10,border:"1px solid rgba(255,255,255,.08)"}} />
+                  <div className="muted" style={{fontSize:10,marginTop:4}}>{asset.sceneId}</div>
+                </a>
+              ))}
+            </div>
+          </div>}
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
             <button className="ctrl green compact" onClick={renderFinalVideo} disabled={rendering}>
               <Sparkles size={14}/>{rendering ? "Rendering video…" : activeProject.ai.render?.status === "READY" ? "Render again" : "Render Final Video"}
@@ -432,7 +511,7 @@ export default function Page() {
           </div>
           {activeProject.ai.render?.status === "RENDERING" && <div className="notice" style={{marginTop:10}}>Rendering locally with Windows Speech Synthesis + FFmpeg. This creates a real MP4 with narration and subtitles.</div>}
           {activeProject.ai.render?.status === "FAILED" && <div className="notice" style={{marginTop:10}}>FAILED · {activeProject.ai.render.error}</div>}
-          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · Real MP4 created locally. Visual layer is synthetic motion graphics; no external AI media provider is used.</div>}
+          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · MP4 created locally with narration, subtitles, and the generated Gemi scene images when available.</div>}
         </div>}
 
         <div className="card"><div className="title"><Sparkles size={14}/> Office Controls</div>
