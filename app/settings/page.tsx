@@ -82,13 +82,13 @@ export default function SettingsPage() {
             try {
               const response = await fetch("/api/chatgpt/test", { method: "POST" });
               const data = await response.json();
-              setChatgptResult(data.ok ? `SUCCESS · ${data.model} · ${data.output}` : `FAILED · ${data.code ?? "unknown"} · ${data.error ?? "request failed"}`);
+              setChatgptResult(data.ok ? `SUCCESS · ${data.message ?? "ChatGPT plan connection accepted."} · ${data.models?.[0]?.displayName ?? "model catalog available"}` : `FAILED · ${data.code ?? "unknown"} · ${data.error ?? "request failed"}`);
             } catch {
               setChatgptResult("FAILED · Could not reach the local test endpoint.");
             } finally {
               setChatgptTesting(false);
             }
-          }}><TestTube2 size={14}/>{chatgptTesting ? "Testing…" : "Test GPT request"}</button>
+          }}><TestTube2 size={14}/>{chatgptTesting ? "Testing…" : "Test ChatGPT connection"}</button>
           <a className="ctrl compact" href="https://developers.openai.com/siwc/token-sharing-open-source" target="_blank" rel="noreferrer"><ExternalLink size={14}/> OpenAI docs</a>
         </div>
         {chatgptResult && <div className="notice" style={{marginTop:10}}>{chatgptResult}</div>}
