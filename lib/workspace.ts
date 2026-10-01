@@ -1,4 +1,15 @@
 export type ProjectStatus = "DRAFT" | "PRODUCING" | "COMPLETED";
+export type AIPipelinePhase = "IDLE" | "RESEARCH" | "SCRIPT" | "DIRECTOR" | "COMPLETED" | "FAILED";
+
+export type AIProduction = {
+  phase: AIPipelinePhase;
+  research?: string;
+  script?: string;
+  director?: string;
+  model?: string;
+  error?: string;
+  updatedAt?: string;
+};
 
 export type Project = {
   id: string;
@@ -7,6 +18,7 @@ export type Project = {
   totalScenes: number;
   currentScene: number;
   status: ProjectStatus;
+  ai?: AIProduction;
   createdAt: string;
   updatedAt: string;
 };
@@ -69,6 +81,7 @@ export function createProject(title: string, type: string, totalScenes: number):
     totalScenes,
     currentScene: 0,
     status: "DRAFT",
+    ai: { phase: "IDLE", updatedAt: now },
     createdAt: now,
     updatedAt: now,
   };
