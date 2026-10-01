@@ -293,7 +293,7 @@ export default function Page() {
       setScene(0);
       setRunning(true);
       setResting(false);
-      setToast("AI pipeline complete. Research → Script → Director → Production started.");
+      setToast("AI pipeline complete. Research → Script → Director → Gemi Images → Production started.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI pipeline failed.";
@@ -355,7 +355,9 @@ export default function Page() {
       return;
     }
 
-    const needsAI = (activeProject.ai?.phase ?? "IDLE") !== "COMPLETED";
+    const needsAI =
+      (activeProject.ai?.phase ?? "IDLE") !== "COMPLETED" ||
+      (activeProject.ai?.imageAssets?.length ?? 0) === 0;
     if (needsAI) {
       const completed = await runAIPipeline();
       if (!completed) return;
@@ -364,7 +366,7 @@ export default function Page() {
     updateActiveProject({ status: "PRODUCING" });
     setRunning(true);
     setResting(false);
-    setToast("Production started after the ChatGPT Go AI pipeline.");
+    setToast("Production started after the ChatGPT Go + Cloudflare Workers AI pipeline.");
   };
 
   const toggleRest = () => {
@@ -414,6 +416,11 @@ export default function Page() {
       if (person.dept === "research" && aiPhase === "RESEARCH") return "Researching project";
       if (person.dept === "script" && aiPhase === "SCRIPT") return "Writing YouTube script";
       if (person.dept === "director" && aiPhase === "DIRECTOR") return "Planning production scenes";
+      if (person.dept === "image" && aiPhase === "IMAGES") {
+        const count = activeProject?.ai?.imageAssets?.length ?? 0;
+        const total = activeProject?.totalScenes ?? 0;
+        return total ? `Generating scene images · ${count}/${total}` : "Generating scene images";
+      }
       return "Standing by";
     }
     if (person.dept === "research") return stage === 0 && running ? "Finding topics" : "Standing by";
