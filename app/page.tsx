@@ -48,6 +48,7 @@ export default function Page() {
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState("Workspace ready.");
   const [workerCommand, setWorkerCommand] = useState<WorkerCommand | null>(null);
+  const [rendering, setRendering] = useState(false);
 
   const activeProject = useMemo(
     () => workspace.projects.find((project) => project.id === workspace.activeProjectId) ?? null,
@@ -244,6 +245,45 @@ export default function Page() {
     }
   };
 
+  const renderFinalVideo = async () => {
+    if (!activeProject?.ai?.script || !activeProject.ai.director || rendering) return;
+    setRendering(true);
+    setToast("Local renderer: generating narration and assembling the video…");
+    updateActiveAI({ render: { status: "RENDERING", error: undefined } });
+
+    try {
+      const response = await fetch("/api/production/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          title: activeProject.title,
+          script: activeProject.ai.script,
+          director: activeProject.ai.director,
+          model: activeProject.ai.model,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error ?? "Local render failed.");
+
+      updateActiveAI({
+        render: {
+          status: "READY",
+          videoUrl: data.videoUrl,
+          thumbnailUrl: data.thumbnailUrl,
+          generatedAt: new Date().toISOString(),
+        },
+      });
+      setToast("Video rendered successfully. Open Library or preview it below.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Local render failed.";
+      updateActiveAI({ render: { status: "FAILED", error: message } });
+      setToast("Render failed: " + message);
+    } finally {
+      setRendering(false);
+    }
+  };
+
   const startProduction = async () => {
     if (!activeProject) {
       setToast("Create or activate a project before starting production.");
@@ -378,6 +418,20 @@ export default function Page() {
           <details><summary className="mini">Research brief</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:220,overflow:"auto"}}>{activeProject.ai.research}</div></details>
           <details style={{marginTop:8}}><summary className="mini">Script</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:260,overflow:"auto"}}>{activeProject.ai.script}</div></details>
           <details style={{marginTop:8}}><summary className="mini">Director scene plan</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:280,overflow:"auto"}}>{activeProject.ai.director}</div></details>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
+            <button className="ctrl green compact" onClick={renderFinalVideo} disabled={rendering}>
+              <Sparkles size={14}/>{rendering ? "Rendering video…" : activeProject.ai.render?.status === "READY" ? "Render again" : "Render Final Video"}
+            </button>
+            {activeProject.ai.render?.status === "READY" && activeProject.ai.render.videoUrl && (
+              <a className="ctrl blue compact" href={activeProject.ai.render.videoUrl} target="_blank" rel="noreferrer">▶ Open MP4</a>
+            )}
+            {activeProject.ai.render?.status === "READY" && activeProject.ai.render.thumbnailUrl && (
+              <a className="ctrl compact" href={activeProject.ai.render.thumbnailUrl} target="_blank" rel="noreferrer">Open thumbnail</a>
+            )}
+          </div>
+          {activeProject.ai.render?.status === "RENDERING" && <div className="notice" style={{marginTop:10}}>Rendering locally with Windows Speech Synthesis + FFmpeg. This creates a real MP4 with narration and subtitles.</div>}
+          {activeProject.ai.render?.status === "FAILED" && <div className="notice" style={{marginTop:10}}>FAILED · {activeProject.ai.render.error}</div>}
+          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · Real MP4 created locally. Visual layer is synthetic motion graphics; no external AI media provider is used.</div>}
         </div>}
 
         <div className="card"><div className="title"><Sparkles size={14}/> Office Controls</div>
