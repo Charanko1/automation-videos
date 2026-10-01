@@ -78,7 +78,12 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: model.slug,
-        input: [\n          {\n            role: "user",\n            content: [{ type: "input_text", text: prompt }],\n          },\n        ],
+        input: [
+          {
+            role: "user",
+            content: [{ type: "input_text", text: prompt }],
+          },
+        ],
         tools: [
           {
             type: "image_generation",
