@@ -1,12 +1,21 @@
 export type ProjectStatus = "DRAFT" | "PRODUCING" | "COMPLETED";
 export type AIPipelinePhase = "IDLE" | "RESEARCH" | "SCRIPT" | "DIRECTOR" | "COMPLETED" | "FAILED";
 
+export type AIRender = {
+  status: "IDLE" | "RENDERING" | "READY" | "FAILED";
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  generatedAt?: string;
+  error?: string;
+};
+
 export type AIProduction = {
   phase: AIPipelinePhase;
   research?: string;
   script?: string;
   director?: string;
   model?: string;
+  render?: AIRender;
   error?: string;
   updatedAt?: string;
 };
