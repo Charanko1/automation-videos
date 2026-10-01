@@ -225,12 +225,6 @@ export async function renderLocalVideo(input: {
       "drawbox=x=(iw-520)/2+sin(t*0.7)*220:y=90:w=520:h=8:color=0x6f8cff@0.9:t=fill," +
       "drawbox=x=(iw-220)/2+cos(t*0.45)*360:y=ih-140:w=220:h=12:color=0x4fe0aa@0.85:t=fill," +
       "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=54'";
-  const videoFilter =
-    "drawbox=x=0:y=0:w=iw:h=ih:color=0x0b1020@1:t=fill," +
-    "drawbox=x=(iw-520)/2+sin(t*0.7)*220:y=90:w=520:h=8:color=0x6f8cff@0.9:t=fill," +
-    "drawbox=x=(iw-220)/2+cos(t*0.45)*360:y=ih-140:w=220:h=12:color=0x4fe0aa@0.85:t=fill," +
-    "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=54'";
-
   const visualInput = visualSourcePath ?? null;
   const finalVideoArgs = [
     "-y",
