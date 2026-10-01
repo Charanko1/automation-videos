@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Activity, BarChart3, Bot, CalendarDays, FolderKanban, Gauge, Image as ImageIcon, LayoutDashboard, Pause, Play, Settings, Sparkles, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type Workspace } from "../lib/workspace";
+import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type AIProduction, type Workspace } from "../lib/workspace";
 
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
@@ -22,6 +22,15 @@ const pipe = [
   ["Video", "Animate art"], ["TTS", "Create voice"], ["Editing", "Render final"], ["Upload", "Publish"],
 ];
 
+const aiPhaseLabel: Record<string, string> = {
+  IDLE: "Ready",
+  RESEARCH: "Rhea · Researching",
+  SCRIPT: "Wri · Writing",
+  DIRECTOR: "Dira · Planning",
+  COMPLETED: "Research + Script + Director complete",
+  FAILED: "Pipeline failed",
+};
+
 type WorkerCommand = { workerId: string; type: "BREAK" | "RETURN"; nonce: number };
 
 function projectStage(scene: number, total: number) {
@@ -33,6 +42,7 @@ export default function Page() {
   const [workspace, setWorkspace] = useState<Workspace>(EMPTY_WORKSPACE);
   const [ready, setReady] = useState(false);
   const [running, setRunning] = useState(false);
+  const [aiRunning, setAiRunning] = useState(false);
   const [resting, setResting] = useState(false);
   const [scene, setScene] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -47,6 +57,8 @@ export default function Page() {
   const pct = activeProject ? Math.round((scene / Math.max(totalScenes, 1)) * 100) : 0;
   const completedVideos = workspace.projects.filter((project) => project.status === "COMPLETED").length;
   const stage = projectStage(scene, totalScenes);
+  const aiPhase = activeProject?.ai?.phase ?? "IDLE";
+  const officeActive = running || aiRunning;
 
   useEffect(() => {
     const current = readWorkspace();
@@ -58,22 +70,24 @@ export default function Page() {
       if (event.key !== "ai-office.workspace.v1") return;
       const next = readWorkspace();
       setWorkspace(next);
-      if (!running) setScene(next.projects.find((project) => project.id === next.activeProjectId)?.currentScene ?? 0);
+      if (!running && !aiRunning) setScene(next.projects.find((project) => project.id === next.activeProjectId)?.currentScene ?? 0);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [running]);
+  }, [running, aiRunning]);
 
   useEffect(() => {
     if (!ready) return;
     const nextScene = activeProject?.currentScene ?? 0;
     setScene(nextScene);
-    setRunning(false);
-    setResting(false);
+    if (!aiRunning) {
+      setRunning(false);
+      setResting(false);
+    }
   }, [activeProject?.id]);
 
   useEffect(() => {
-    if (!ready || !running || resting || !activeProject) return;
+    if (!ready || !running || aiRunning || resting || !activeProject) return;
     const timer = window.setInterval(() => {
       setScene((current) => {
         const next = Math.min(current + 1, totalScenes);
@@ -83,9 +97,7 @@ export default function Page() {
               ? {
                   ...project,
                   currentScene: next,
-                  status: next >= project.totalScenes
-                    ? ("COMPLETED" as const)
-                    : ("PRODUCING" as const),
+                  status: next >= project.totalScenes ? ("COMPLETED" as const) : ("PRODUCING" as const),
                   updatedAt: new Date().toISOString(),
                 }
               : project,
@@ -103,18 +115,125 @@ export default function Page() {
       });
     }, 2100);
     return () => window.clearInterval(timer);
-  }, [activeProject?.id, activeProject?.totalScenes, ready, resting, running, totalScenes]);
+  }, [activeProject?.id, activeProject?.totalScenes, aiRunning, ready, resting, running, totalScenes]);
 
   const updateActiveProject = (patch: Partial<Workspace["projects"][number]>) => {
     if (!activeProject) return;
     setWorkspace((current) => {
       const updatedWorkspace = {
         ...current,
-        projects: current.projects.map((project) => project.id === activeProject.id ? { ...project, ...patch, updatedAt: new Date().toISOString() } : project),
+        projects: current.projects.map((project) =>
+          project.id === activeProject.id
+            ? { ...project, ...patch, updatedAt: new Date().toISOString() }
+            : project,
+        ),
       };
       writeWorkspace(updatedWorkspace);
       return updatedWorkspace;
     });
+  };
+
+  const updateActiveAI = (patch: Partial<AIProduction>) => {
+    if (!activeProject) return;
+    setWorkspace((current) => {
+      const now = new Date().toISOString();
+      const updatedWorkspace = {
+        ...current,
+        projects: current.projects.map((project) =>
+          project.id === activeProject.id
+            ? {
+                ...project,
+                ai: { phase: "IDLE" as const, ...(project.ai ?? {}), ...patch, updatedAt: now },
+                updatedAt: now,
+              }
+            : project,
+        ),
+      };
+      writeWorkspace(updatedWorkspace);
+      return updatedWorkspace;
+    });
+  };
+
+  const runAIPipeline = async () => {
+    if (!activeProject || aiRunning) return;
+
+    setAiRunning(true);
+    setResting(false);
+    setToast("Rhea is researching the project with ChatGPT Go.");
+    updateActiveAI({ phase: "RESEARCH", error: undefined });
+    updateActiveProject({ status: "PRODUCING" });
+
+    try {
+      const researchResponse = await fetch("/api/production/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "research", title: activeProject.title, format: activeProject.type }),
+      });
+      const researchData = await researchResponse.json();
+      if (!researchResponse.ok || !researchData.ok) {
+        throw new Error(researchData.error ?? "Research stage failed.");
+      }
+
+      updateActiveAI({
+        phase: "SCRIPT",
+        research: researchData.text,
+        model: researchData.model,
+        error: undefined,
+      });
+      setToast("Rhea finished. Wri is writing the script with ChatGPT Go.");
+
+      const scriptResponse = await fetch("/api/production/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage: "script",
+          title: activeProject.title,
+          format: activeProject.type,
+          research: researchData.text,
+        }),
+      });
+      const scriptData = await scriptResponse.json();
+      if (!scriptResponse.ok || !scriptData.ok) {
+        throw new Error(scriptData.error ?? "Script stage failed.");
+      }
+
+      updateActiveAI({
+        phase: "DIRECTOR",
+        script: scriptData.text,
+        model: scriptData.model ?? researchData.model,
+        error: undefined,
+      });
+      setToast("Wri finished. Dira is turning the script into a scene plan.");
+
+      const directorResponse = await fetch("/api/production/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage: "director",
+          title: activeProject.title,
+          format: activeProject.type,
+          script: scriptData.text,
+        }),
+      });
+      const directorData = await directorResponse.json();
+      if (!directorResponse.ok || !directorData.ok) {
+        throw new Error(directorData.error ?? "Director stage failed.");
+      }
+
+      updateActiveAI({
+        phase: "COMPLETED",
+        director: directorData.text,
+        model: directorData.model ?? scriptData.model ?? researchData.model,
+        error: undefined,
+      });
+      setToast("AI pipeline complete: Research → Script → Director.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI pipeline failed.";
+      updateActiveAI({ phase: "FAILED", error: message });
+      setToast(`AI pipeline failed: ${message}`);
+    } finally {
+      setAiRunning(false);
+    }
   };
 
   const startProduction = () => {
@@ -154,8 +273,8 @@ export default function Page() {
 
   const issueWorkerCommand = (type: "BREAK" | "RETURN") => {
     if (!selected) return;
-    if (type === "BREAK" && (!running || resting)) {
-      setToast("Start production before sending a worker to break.");
+    if (type === "BREAK" && (!officeActive || resting || aiRunning)) {
+      setToast("Finish the ChatGPT AI pipeline or start production before sending a worker to break.");
       return;
     }
     const worker = people.find((person) => person.id === selected);
@@ -164,9 +283,30 @@ export default function Page() {
   };
 
   const status = (dept: string) => {
+    if (aiRunning) {
+      const aiStage = { research: "RESEARCH", script: "SCRIPT", director: "DIRECTOR" }[dept];
+      if (aiStage === aiPhase) return "Working";
+      return "Idle";
+    }
     if (resting || !running || !activeProject) return resting ? "Resting" : "Idle";
     const deptStage = { research: 0, script: 1, director: 2, image: 3, video: 4, tts: 5 }[dept as keyof Record<string, number>];
     return deptStage === stage ? "Working" : "Idle";
+  };
+
+  const workerTask = (person: (typeof people)[number]) => {
+    if (aiRunning) {
+      if (person.dept === "research" && aiPhase === "RESEARCH") return "Researching project";
+      if (person.dept === "script" && aiPhase === "SCRIPT") return "Writing YouTube script";
+      if (person.dept === "director" && aiPhase === "DIRECTOR") return "Planning production scenes";
+      return "Standing by";
+    }
+    if (person.dept === "research") return stage === 0 && running ? "Finding topics" : "Standing by";
+    if (person.dept === "script") return stage === 1 && running ? "Writing narrative" : "Standing by";
+    if (person.dept === "director") return stage === 2 && running ? "Planning shots" : "Standing by";
+    if (person.dept === "image") return stage === 3 && running ? "Generating scene images" : "Standing by";
+    if (person.dept === "video") return stage === 4 && running ? "Animating scenes" : "Standing by";
+    if (person.dept === "tts") return stage === 5 && running ? "Generating voice-over" : "Standing by";
+    return "Standing by";
   };
 
   if (!ready) return <div className="app" style={{ placeItems: "center" }}><div className="muted">Loading workspace…</div></div>;
@@ -193,11 +333,11 @@ export default function Page() {
         })}
         <Link className="hire" href="/projects">+ Create Project</Link>
         <div className="card"><div className="mini">Active project</div><div className="projectName">{activeProject?.title ?? "No active project"}</div><div className="muted">{activeProject ? `${activeProject.type} · ${activeProject.totalScenes} scenes` : "Create a project to start production."}</div><div className="prog"><i style={{width:`${pct}%`}}/></div><div className="projectFoot"><span>Scene {scene}/{totalScenes}</span><b>{pct}%</b></div></div>
-        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":running?"#64dfa1":"#7f8791",marginRight:7}}/>{resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>Worker movement follows the active production state. Provider usage and billing are tracked by the server integration.</div></div>
+        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "CHATGPT AI PIPELINE" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. ChatGPT Go is the only external AI provider configured for this office."}</div></div>
       </aside>
 
       <section className="world">
-        <OfficeWorld people={people.map((person) => ({ ...person, state: status(person.dept) }))} running={running} resting={resting} selected={selected} onSelect={setSelected} workerCommand={workerCommand} maxBreaks={workspace.settings.maxBreaks}/>
+        <OfficeWorld people={people.map((person) => ({ ...person, state: status(person.dept) }))} running={officeActive} resting={resting} selected={selected} onSelect={setSelected} workerCommand={workerCommand} maxBreaks={workspace.settings.maxBreaks}/>
         <div className="hud"><div className="toast"><Activity size={13}/>{toast}</div><div className="tip">Drag = rotate · Wheel = zoom · Shift + drag = pan</div></div>
       </section>
 
@@ -209,27 +349,44 @@ export default function Page() {
             return <div className="pipelineRow" key={item[0]}><div className={`node ${done ? "done" : active ? "active" : ""}`}>{done ? "✓" : i + 1}</div><div><div className="pname">{item[0]}</div><div className="pdetail">{item[1]}</div></div></div>;
           })}
         </div>
+
+        <div className="card"><div className="title"><Sparkles size={14}/> ChatGPT Go AI Brain</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>Real plan-backed AI chain for the first three production roles: Research → Script → Director.</div>
+          <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
+          <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
+          <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Research → Script → Director"}</button>
+          {activeProject?.ai?.error && <div className="notice" style={{marginTop:10}}>FAILED · {activeProject.ai.error}</div>}
+        </div>
+
+        {activeProject?.ai?.phase === "COMPLETED" && <div className="card">
+          <div className="title"><Bot size={14}/> AI Artifacts</div>
+          <details><summary className="mini">Research brief</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:220,overflow:"auto"}}>{activeProject.ai.research}</div></details>
+          <details style={{marginTop:8}}><summary className="mini">Script</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:260,overflow:"auto"}}>{activeProject.ai.script}</div></details>
+          <details style={{marginTop:8}}><summary className="mini">Director scene plan</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:280,overflow:"auto"}}>{activeProject.ai.director}</div></details>
+        </div>}
+
         <div className="card"><div className="title"><Sparkles size={14}/> Office Controls</div>
-          <button className="ctrl green" onClick={startProduction}><Play size={14}/> Start Production</button>
-          <button className="ctrl blue" onClick={toggleRest} disabled={!activeProject}><Pause size={14}/> {resting ? "Resume" : "Pause / Rest"}</button>
-          <button className="ctrl red" onClick={stopProduction} disabled={!running && !resting}>■ Stop</button>
+          <button className="ctrl green" onClick={startProduction} disabled={aiRunning}><Play size={14}/> Start Production</button>
+          <button className="ctrl blue" onClick={toggleRest} disabled={!activeProject || aiRunning}><Pause size={14}/> {resting ? "Resume" : "Pause / Rest"}</button>
+          <button className="ctrl red" onClick={stopProduction} disabled={!running || aiRunning}>■ Stop</button>
           <div className="stat" style={{marginTop:12}}><span>Current scene</span><b>{scene}/{totalScenes}</b></div>
           <div className="stat"><span>Progress</span><b>{pct}%</b></div>
           <div className="stat"><span>Budget ceiling</span><b>Rp {workspace.settings.dailyCeiling.toLocaleString("id-ID")}</b></div>
         </div>
+
         <div className="card worker-detail">
           <div className="title"><Users size={14}/> Selected Worker</div>
           {selected ? (() => {
             const person = people.find((item) => item.id === selected);
             if (!person) return <div className="muted">Worker not found.</div>;
             const st = status(person.dept);
-            const task = person.dept === "research" ? (stage === 0 && running ? "Finding topics" : "Standing by") : person.dept === "script" ? (stage === 1 && running ? "Writing narrative" : "Standing by") : person.dept === "director" ? (stage === 2 && running ? "Planning shots" : "Standing by") : person.dept === "image" ? (stage === 3 && running ? "Generating scene images" : "Standing by") : person.dept === "video" ? (stage === 4 && running ? "Animating scenes" : "Standing by") : person.dept === "tts" ? (stage === 5 && running ? "Generating voice-over" : "Standing by") : "Standing by";
+            const task = workerTask(person);
             return <div>
               <div style={{display:"flex",gap:10,alignItems:"center"}}><div className="avatar avatar-lg" style={{background:"linear-gradient(145deg,"+person.color+",#fff)"}}>{person.name[0]}</div><div><div className="ename">{person.name}</div><div className="erole">{person.role}</div><div className="detail-provider">{person.provider}</div></div></div>
               <div className="detail-status"><span className={"detail-pill "+st.toLowerCase()}>{st.toLowerCase()}</span><span className="muted">Scene {scene}/{totalScenes}</span></div>
               <div className="detail-block"><div className="mini">Current task</div><div className="detail-value">{task}</div></div>
               <div className="worker-actions">
-                <button className="worker-action amber" disabled={!running || resting} onClick={() => issueWorkerCommand("BREAK")}>☕ Send to break</button>
+                <button className="worker-action amber" disabled={!running || resting || aiRunning} onClick={() => issueWorkerCommand("BREAK")}>☕ Send to break</button>
                 <button className="worker-action" onClick={() => issueWorkerCommand("RETURN")}>↩ Call to desk</button>
               </div>
             </div>;
