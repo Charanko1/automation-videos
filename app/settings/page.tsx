@@ -193,12 +193,12 @@ export default function SettingsPage() {
       <CloudflareImageTest />
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
-          ["ChatGPT Go","Primary AI brain for research, scripts, and direction"],
+          ["DeepSeek V3 · OpenRouter Free","Primary AI brain for research, scripts, and direction"],
           ["Cloudflare Workers AI","Gemi image-generation stage for production scene art"],
           ["Local renderer","Stage for narration, subtitles, camera motion, and final video assembly"],
           ["YouTube","Publishing integration; not an AI provider"],
-        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "ChatGPT Go" ? "CONNECTED ABOVE" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
-        <div className="notice" style={{marginTop:10}}>This workspace uses ChatGPT Go for research, scripts, and direction. Cloudflare Workers AI is configured separately for Gemi scene-image generation through the local Workers AI REST API credentials in the environment.</div>
+        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "DeepSeek V3 · OpenRouter Free" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
+        <div className="notice" style={{marginTop:10}}>This workspace uses DeepSeek V3 through OpenRouter Free for research, scripts, and direction. Cloudflare Workers AI is configured separately for Gemi scene-image generation. The OpenRouter API key and model are read server-side from environment variables.</div>
       </div>
       <div className="card"><div className="title"><Bell size={14}/> OPERATIONS POLICY</div>
         <div className="notice"><Check size={14}/> Provider limits should pause the affected queue on the server. The client Office view only reflects the state supplied by the production engine.</div>
