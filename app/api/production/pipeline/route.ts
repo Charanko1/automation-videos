@@ -81,7 +81,8 @@ export async function POST(request: Request) {
         "First create an IMMUTABLE CHARACTER BIBLE for every recurring human/animal/fictional character.",
         "The Character Bible must use fixed fields: character_id, name, apparent_age, gender_presentation, ethnicity_or_species, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, color_palette, art_style, and hard_constraints.",
         "Once created, NEVER change the Character Bible during this project unless the story explicitly introduces a permanent character redesign.",
-        "Then return 8-12 numbered scenes.",
+        "Then output the Character Bible exactly between CHARACTER_BIBLE_START and CHARACTER_BIBLE_END.",
+        "After the Character Bible, return 8-12 numbered scenes.",
         "For every scene provide:",
         "- scene_id",
         "- purpose",
@@ -110,12 +111,19 @@ export async function POST(request: Request) {
 
     const result = await generateWithChatGPT(prompt);
 
+    let characterBible = "";
+    if (stage === "director") {
+      const match = result.text.match(/CHARACTER_BIBLE_START\\s*([\\s\\S]*?)\\s*CHARACTER_BIBLE_END/i);
+      characterBible = match?.[1]?.trim() ?? "";
+    }
+
     return NextResponse.json({
       ok: true,
       stage,
       model: result.model,
       displayName: result.displayName,
       text: result.text,
+      ...(stage === "director" ? { characterBible } : {}),
     });
   } catch (error) {
     return NextResponse.json(
