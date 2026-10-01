@@ -9,9 +9,9 @@ import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type AIProduction, type
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
 const people = [
-  { id: "rhea", name: "Rhea", role: "Researcher", provider: "ChatGPT Go", dept: "research", color: "#73a5ff" },
-  { id: "wri", name: "Wri", role: "Scriptwriter", provider: "ChatGPT Go", dept: "script", color: "#f0bc68" },
-  { id: "dira", name: "Dira", role: "Director", provider: "ChatGPT Go", dept: "director", color: "#c58aff" },
+  { id: "rhea", name: "Rhea", role: "Researcher", provider: "DeepSeek V3 · OpenRouter Free", dept: "research", color: "#73a5ff" },
+  { id: "wri", name: "Wri", role: "Scriptwriter", provider: "DeepSeek V3 · OpenRouter Free", dept: "script", color: "#f0bc68" },
+  { id: "dira", name: "Dira", role: "Director", provider: "DeepSeek V3 · OpenRouter Free", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "Image Artist", provider: "Cloudflare Workers AI", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "ChatGPT Go", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Narrator", provider: "ChatGPT Go", dept: "tts", color: "#ff8b94" },
@@ -164,7 +164,7 @@ export default function Page() {
 
     setAiRunning(true);
     setResting(false);
-    setToast("Rhea is researching the project with ChatGPT Go.");
+    setToast("Rhea is researching the project with DeepSeek V3 via OpenRouter Free.");
     updateActiveAI({ phase: "RESEARCH", error: undefined });
     updateActiveProject({ status: "PRODUCING" });
 
@@ -185,7 +185,7 @@ export default function Page() {
         model: researchData.model,
         error: undefined,
       });
-      setToast("Rhea finished. Wri is writing the script with ChatGPT Go.");
+      setToast("Rhea finished. Wri is writing the script with DeepSeek V3 via OpenRouter Free.");
 
       const scriptResponse = await fetch("/api/production/pipeline", {
         method: "POST",
@@ -208,7 +208,7 @@ export default function Page() {
         model: scriptData.model ?? researchData.model,
         error: undefined,
       });
-      setToast("Wri finished. Dira is turning the script into a scene plan.");
+      setToast("Wri finished. Dira is turning the script into a scene plan with DeepSeek V3.");
 
       const directorResponse = await fetch("/api/production/pipeline", {
         method: "POST",
@@ -369,7 +369,7 @@ export default function Page() {
     updateActiveProject({ status: "PRODUCING" });
     setRunning(true);
     setResting(false);
-    setToast("Production started after the ChatGPT Go + Cloudflare Workers AI pipeline.");
+    setToast("Production started after the DeepSeek V3 + Cloudflare Workers AI pipeline.");
   };
 
   const toggleRest = () => {
@@ -484,8 +484,8 @@ export default function Page() {
           })}
         </div>
 
-        <div className="card"><div className="title"><Sparkles size={14}/> ChatGPT Go AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT Go handles Research → Script → Director. Gemi then turns Dira&apos;s scene prompts into real 16:9 images with Cloudflare Workers AI.</div>
+        <div className="card"><div className="title"><Sparkles size={14}/> DeepSeek AI Brain</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>DeepSeek V3 handles Research → Script → Director through OpenRouter Free. Gemi then turns Dira&apos;s scene prompts into real 16:9 images with Cloudflare Workers AI.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
