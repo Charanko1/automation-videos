@@ -193,11 +193,12 @@ export default function SettingsPage() {
       <CloudflareImageTest />
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
-          ["ChatGPT Go","Primary AI brain for research, scripts, direction, visual prompts, motion plans, and narration"],
-          ["Local renderer","Non-AI stage for assembling approved assets into the final video"],
+          ["ChatGPT Go","Primary AI brain for research, scripts, and direction"],
+          ["Cloudflare Workers AI","Gemi image-generation stage for production scene art"],
+          ["Local renderer","Stage for narration, subtitles, camera motion, and final video assembly"],
           ["YouTube","Publishing integration; not an AI provider"],
-        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "ChatGPT Go" ? "CONNECTED ABOVE" : "CONFIGURATION REQUIRED"}</span></div>)}
-        <div className="notice" style={{marginTop:10}}>This workspace is configured to use ChatGPT Go as its only external AI provider. The current Sign in with ChatGPT Responses API flow does not expose image generation, file search, Code Interpreter, native computer use, or other hosted AI tools, so media production stages must use local/non-AI processing unless OpenAI adds support for them.</div>
+        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "ChatGPT Go" ? "CONNECTED ABOVE" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
+        <div className="notice" style={{marginTop:10}}>This workspace uses ChatGPT Go for research, scripts, and direction. Cloudflare Workers AI is configured separately for Gemi scene-image generation through the local Workers AI REST API credentials in the environment.</div>
       </div>
       <div className="card"><div className="title"><Bell size={14}/> OPERATIONS POLICY</div>
         <div className="notice"><Check size={14}/> Provider limits should pause the affected queue on the server. The client Office view only reflects the state supplied by the production engine.</div>
