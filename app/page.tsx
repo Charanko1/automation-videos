@@ -224,6 +224,7 @@ export default function Page() {
       updateActiveAI({
         phase: "COMPLETED",
         director: directorData.text,
+        characterBible: directorData.characterBible ?? "",
         model: directorData.model ?? scriptData.model ?? researchData.model,
         error: undefined,
       });
