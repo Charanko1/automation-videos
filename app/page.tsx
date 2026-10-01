@@ -395,7 +395,7 @@ export default function Page() {
   const issueWorkerCommand = (type: "BREAK" | "RETURN") => {
     if (!selected) return;
     if (type === "BREAK" && (!officeActive || resting || aiRunning)) {
-      setToast("Finish the ChatGPT AI pipeline or start production before sending a worker to break.");
+      setToast("Finish the AI pre-production pipeline or start production before sending a worker to break.");
       return;
     }
     const worker = people.find((person) => person.id === selected);
@@ -488,7 +488,7 @@ export default function Page() {
           <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT Go handles Research → Script → Director. Gemi then turns Dira&apos;s scene prompts into real 16:9 images with Cloudflare Workers AI.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
-          <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Research → Script → Director"}</button>
+          <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
           {activeProject?.ai?.error && <div className="notice" style={{marginTop:10}}>FAILED · {activeProject.ai.error}</div>}
         </div>
 
