@@ -168,7 +168,7 @@ export async function POST(request: Request) {
         "- image_priority (hero, standard, transition)",
         "CRITICAL: Every visual_prompt MUST include the complete relevant Character Bible text verbatim for each referenced recurring character.",
         "CRITICAL: Never use vague phrases such as 'same character as before' or 'as previously described'. Repeat the fixed character specification in every scene.",
-        "Design prompts for Gemini native image generation. Do not request image generation from ChatGPT.",
+        "Design prompts for Gemi using Cloudflare Workers AI image generation. Do not request image generation from ChatGPT.",
         "If a reference image is available, instruct Gemi to use it as a subject reference while preserving the Character Bible constraints.",
         "Keep visual instructions concrete, cinematic, and production-ready.",
         "Do not claim that any image, audio, or video asset has already been generated.",
