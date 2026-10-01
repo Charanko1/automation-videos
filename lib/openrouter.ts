@@ -1,5 +1,5 @@
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "deepseek/deepseek-chat:free";
+const DEFAULT_MODEL = "deepseek/deepseek-chat-v3.1:free";
 
 type OpenRouterMessage = {
   role: "assistant";
@@ -65,6 +65,6 @@ export async function generateWithOpenRouter(prompt: string, modelSlug?: string)
   return {
     text,
     model,
-    displayName: model === "deepseek/deepseek-chat:free" ? "DeepSeek V3 · OpenRouter Free" : model,
+    displayName: model === "deepseek/deepseek-chat-v3.1:free" ? "DeepSeek V3.1 · OpenRouter Free" : model,
   };
 }
