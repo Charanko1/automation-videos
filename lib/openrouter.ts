@@ -1,5 +1,5 @@
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "deepseek/deepseek-r1-distill-llama-70b:free";
+const DEFAULT_MODEL = "openrouter/free";
 
 type OpenRouterMessage = {
   role: "assistant";
@@ -26,6 +26,7 @@ export async function generateWithOpenRouter(prompt: string, modelSlug?: string)
   const modelAliases: Record<string, string> = {
     "deepseek/deepseek-chat:free": DEFAULT_MODEL,
     "deepseek/deepseek-chat-v3.1:free": DEFAULT_MODEL,
+    "deepseek/deepseek-r1-distill-llama-70b:free": DEFAULT_MODEL,
   };
   const model = modelAliases[configuredModel] ?? configuredModel;
 
@@ -70,6 +71,6 @@ export async function generateWithOpenRouter(prompt: string, modelSlug?: string)
   return {
     text,
     model,
-    displayName: model === DEFAULT_MODEL ? "DeepSeek R1 Distill · OpenRouter Free" : model,
+    displayName: model === DEFAULT_MODEL ? "OpenRouter Free Models Router" : model,
   };
 }
