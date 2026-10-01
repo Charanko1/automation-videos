@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Check, Save, Settings as SettingsIcon, Shield, SlidersHorizontal } from "lucide-react";
+import { Bell, Check, Save, Settings as SettingsIcon, Shield, SlidersHorizontal, Bot, ExternalLink, TestTube2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DEFAULT_SETTINGS, EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type ProductionSettings, type Workspace } from "../../lib/workspace";
 
@@ -9,11 +9,21 @@ export default function SettingsPage() {
   const [workspace, setWorkspace] = useState<Workspace>(EMPTY_WORKSPACE);
   const [form, setForm] = useState<ProductionSettings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
+  const [chatgpt, setChatgpt] = useState<{ connected: boolean; planUsageEnabled: boolean; email?: string | null; error?: string } | null>(null);
+  const [chatgptTesting, setChatgptTesting] = useState(false);
+  const [chatgptResult, setChatgptResult] = useState<string>("");
 
   useEffect(() => {
     const current = readWorkspace();
     setWorkspace(current);
     setForm(current.settings);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/chatgpt/status")
+      .then((response) => response.json())
+      .then((data) => setChatgpt(data))
+      .catch(() => setChatgpt({ connected: false, planUsageEnabled: false, error: "Status unavailable" }));
   }, []);
 
   const update = <K extends keyof ProductionSettings>(key: K, value: number) => {
@@ -50,6 +60,39 @@ export default function SettingsPage() {
         <label className="setting-label"><span className="mini">Scenes per project</span><input type="number" min="1" max="500" value={form.scenesPerVideo} onChange={(e) => update("scenesPerVideo", Number(e.target.value))} /></label>
         <label className="setting-label"><span className="mini">Maximum concurrent break workers</span><input type="number" min="1" max="6" value={form.maxBreaks} onChange={(e) => update("maxBreaks", Number(e.target.value))} /></label>
         <button className="ctrl green compact" onClick={save}><Save size={14}/> {saved ? "Settings Saved" : "Save Settings"}</button>
+      </div>
+      <div className="card">
+        <div className="title"><Bot size={14}/> CHATGPT PLAN CONNECTION</div>
+        <div className="muted" style={{lineHeight:1.6,margin:"8px 0 12px"}}>
+          Experimental local test for OpenAI's Sign in with ChatGPT flow. It does not use an API key.
+          OpenAI currently limits ChatGPT-plan token sharing to eligible Plus/Pro users, so your Go account may sign in but be denied plan usage.
+        </div>
+        <div className="provider-row">
+          <div>
+            <div className="ename">{chatgpt?.connected ? (chatgpt.email ?? "ChatGPT connected") : "Not connected"}</div>
+            <div className="muted">{chatgpt?.planUsageEnabled ? "ChatGPT plan usage permission granted" : "No ChatGPT plan usage permission"}</div>
+          </div>
+          <span className="provider-state"><span className="state-dot"/>{chatgpt?.planUsageEnabled ? "READY" : "LOCAL TEST"}</span>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
+          <a className="ctrl green compact" href="/api/auth/chatgpt/start"><Bot size={14}/> Continue with ChatGPT</a>
+          <button className="ctrl blue compact" disabled={!chatgpt?.planUsageEnabled || chatgptTesting} onClick={async () => {
+            setChatgptTesting(true);
+            setChatgptResult("");
+            try {
+              const response = await fetch("/api/chatgpt/test", { method: "POST" });
+              const data = await response.json();
+              setChatgptResult(data.ok ? `SUCCESS · ${data.model} · ${data.output}` : `FAILED · ${data.code ?? "unknown"} · ${data.error ?? "request failed"}`);
+            } catch {
+              setChatgptResult("FAILED · Could not reach the local test endpoint.");
+            } finally {
+              setChatgptTesting(false);
+            }
+          }}><TestTube2 size={14}/>{chatgptTesting ? "Testing…" : "Test GPT request"}</button>
+          <a className="ctrl compact" href="https://developers.openai.com/siwc/token-sharing-open-source" target="_blank" rel="noreferrer"><ExternalLink size={14}/> OpenAI docs</a>
+        </div>
+        {chatgptResult && <div className="notice" style={{marginTop:10}}>{chatgptResult}</div>}
+        <div className="muted" style={{fontSize:11,marginTop:10}}>Run this test from <b>http://127.0.0.1:3000</b>. Credentials are stored only in a local ignored file during development.</div>
       </div>
       <div className="card"><div className="title"><Shield size={14}/> PROVIDER CONFIGURATION</div>
         {[["DeepSeek #1–#3","Research, script, and direction workers"],["Gemini","Image generation worker"],["Video provider","Animation worker"],["TTS provider","Voice generation worker"],["YouTube","Publishing integration"]].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>Server configuration required</span></div>)}
