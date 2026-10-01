@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      { ok: false, stage: (await request.clone().json().catch(() => ({})))?.stage ?? null, error: error instanceof Error ? error.message : "AI pipeline failed." },
+      { ok: false, error: error instanceof Error ? error.message : "AI pipeline failed." },
       { status: 502 },
     );
   }
