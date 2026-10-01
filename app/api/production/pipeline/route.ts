@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithChatGPT } from "../../../../lib/chatgpt";
+import { generateWithOpenRouter } from "../../../../lib/openrouter";
 
 type Stage = "research" | "script" | "director";
 
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
       ].join("\n");
     }
 
-    const result = await generateWithChatGPT(prompt);
+    const result = await generateWithOpenRouter(prompt);
 
     let characterBible = "";
     if (stage === "director") {
@@ -209,6 +209,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       stage,
+      provider: "OpenRouter",
       model: result.model,
       displayName: result.displayName,
       text: result.text,
