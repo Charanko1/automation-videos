@@ -28,15 +28,18 @@ const aiPhaseLabel: Record<string, string> = {
   SCRIPT: "Wri · Writing",
   DIRECTOR: "Dira · Planning",
   IMAGES: "Gemi · Generating scene images",
-  COMPLETED: "Research + Script + Director complete",
+  COMPLETED: "Pre-production + Gemi images complete",
   FAILED: "Pipeline failed",
 };
 
 type WorkerCommand = { workerId: string; type: "BREAK" | "RETURN"; nonce: number };
 
-function projectStage(scene: number, total: number) {
+function projectStage(scene: number, total: number, preProductionComplete = false) {
   if (total <= 0) return 0;
-  return Math.min(pipe.length - 1, Math.floor((scene / total) * pipe.length));
+  if (!preProductionComplete) {
+    return Math.min(3, Math.floor((scene / total) * 4));
+  }
+  return Math.min(pipe.length - 1, 4 + Math.floor((scene / total) * 4));
 }
 
 export default function Page() {
@@ -58,7 +61,7 @@ export default function Page() {
   const totalScenes = activeProject?.totalScenes ?? workspace.settings.scenesPerVideo;
   const pct = activeProject ? Math.round((scene / Math.max(totalScenes, 1)) * 100) : 0;
   const completedVideos = workspace.projects.filter((project) => project.status === "COMPLETED").length;
-  const stage = projectStage(scene, totalScenes);
+  const stage = projectStage(scene, totalScenes, aiPhase === "COMPLETED");
   const aiPhase = activeProject?.ai?.phase ?? "IDLE";
   const officeActive = running || aiRunning;
 
@@ -471,7 +474,7 @@ export default function Page() {
             const done = activeProject
               ? aiRunning
                 ? i < (aiStageIndex ?? -1)
-                : i < stage && scene > 0
+                : i < stage && (scene > 0 || aiPhase === "COMPLETED")
               : false;
             const active = Boolean(
               activeProject &&
