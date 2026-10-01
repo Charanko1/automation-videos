@@ -1,5 +1,5 @@
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "deepseek/deepseek-chat-v3.1:free";
+const DEFAULT_MODEL = "deepseek/deepseek-r1-distill-llama-70b:free";
 
 type OpenRouterMessage = {
   role: "assistant";
@@ -22,7 +22,12 @@ function extractContent(content: OpenRouterMessage["content"]) {
 
 export async function generateWithOpenRouter(prompt: string, modelSlug?: string): Promise<OpenRouterResult> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-  const model = modelSlug?.trim() || process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+  const configuredModel = modelSlug?.trim() || process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+  const modelAliases: Record<string, string> = {
+    "deepseek/deepseek-chat:free": DEFAULT_MODEL,
+    "deepseek/deepseek-chat-v3.1:free": DEFAULT_MODEL,
+  };
+  const model = modelAliases[configuredModel] ?? configuredModel;
 
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is required.");
@@ -65,6 +70,6 @@ export async function generateWithOpenRouter(prompt: string, modelSlug?: string)
   return {
     text,
     model,
-    displayName: model === "deepseek/deepseek-chat-v3.1:free" ? "DeepSeek V3.1 · OpenRouter Free" : model,
+    displayName: model === DEFAULT_MODEL ? "DeepSeek R1 Distill · OpenRouter Free" : model,
   };
 }
