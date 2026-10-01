@@ -5,3 +5,5 @@ node_modules
 *.log
 data/*.local.json
 .ai-office-chatgpt-auth.json
+public/generated/
+.ai-office-render-temp/
