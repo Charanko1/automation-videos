@@ -193,11 +193,11 @@ export default function SettingsPage() {
       <CloudflareImageTest />
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
-          ["DeepSeek R1 Distill · OpenRouter Free","Primary AI brain for research, scripts, and direction"],
+          ["OpenRouter Free Models Router","Primary AI brain for research, scripts, and direction"],
           ["Cloudflare Workers AI","Gemi image-generation stage for production scene art"],
           ["Local renderer","Stage for narration, subtitles, camera motion, and final video assembly"],
           ["YouTube","Publishing integration; not an AI provider"],
-        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "DeepSeek R1 Distill · OpenRouter Free" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
+        ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "OpenRouter Free Models Router" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
         <div className="notice" style={{marginTop:10}}>This workspace uses DeepSeek V3 through OpenRouter Free for research, scripts, and direction. Cloudflare Workers AI is configured separately for Gemi scene-image generation. The OpenRouter API key and model are read server-side from environment variables.</div>
       </div>
       <div className="card"><div className="title"><Bell size={14}/> OPERATIONS POLICY</div>
