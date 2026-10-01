@@ -226,7 +226,13 @@ export default function Page() {
         model: directorData.model ?? scriptData.model ?? researchData.model,
         error: undefined,
       });
-      setToast("AI pipeline complete: Research → Script → Director.");
+
+      // AI pre-production is complete, so the office automatically hands the project
+      // to the production loop instead of leaving it stuck at scene 0.
+      updateActiveProject({ status: "PRODUCING" });
+      setRunning(true);
+      setResting(false);
+      setToast("AI pipeline complete. Research → Script → Director → Production started.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI pipeline failed.";
