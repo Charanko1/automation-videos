@@ -16,6 +16,15 @@ export async function POST(request: Request) {
     const script = typeof body?.script === "string" ? body.script.trim() : "";
     const director = typeof body?.director === "string" ? body.director.trim() : "";
     const model = typeof body?.model === "string" ? body.model.trim().slice(0, 100) : undefined;
+    const imageAssets = Array.isArray(body?.imageAssets)
+      ? body.imageAssets
+          .filter((asset: unknown) => {
+            if (!asset || typeof asset !== "object") return false;
+            const item = asset as Record<string, unknown>;
+            return typeof item.assetUrl === "string" && item.assetUrl.startsWith("/generated/");
+          })
+          .slice(0, 30)
+      : [];
 
     if (!projectId || !title || !script || !director) {
       return NextResponse.json(
@@ -31,7 +40,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await renderLocalVideo({ projectId, title, script, director, model });
+    const result = await renderLocalVideo({ projectId, title, script, director, model, imageAssets });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return NextResponse.json(
