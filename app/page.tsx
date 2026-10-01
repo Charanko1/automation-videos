@@ -154,8 +154,8 @@ export default function Page() {
     });
   };
 
-  const runAIPipeline = async () => {
-    if (!activeProject || aiRunning) return;
+  const runAIPipeline = async (): Promise<boolean> => {
+    if (!activeProject || aiRunning) return false;
 
     setAiRunning(true);
     setResting(false);
@@ -227,16 +227,18 @@ export default function Page() {
         error: undefined,
       });
       setToast("AI pipeline complete: Research → Script → Director.");
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI pipeline failed.";
       updateActiveAI({ phase: "FAILED", error: message });
       setToast(`AI pipeline failed: ${message}`);
+      return false;
     } finally {
       setAiRunning(false);
     }
   };
 
-  const startProduction = () => {
+  const startProduction = async () => {
     if (!activeProject) {
       setToast("Create or activate a project before starting production.");
       return;
@@ -245,10 +247,17 @@ export default function Page() {
       setToast("This project is already completed.");
       return;
     }
+
+    const needsAI = (activeProject.ai?.phase ?? "IDLE") !== "COMPLETED";
+    if (needsAI) {
+      const completed = await runAIPipeline();
+      if (!completed) return;
+    }
+
     updateActiveProject({ status: "PRODUCING" });
     setRunning(true);
     setResting(false);
-    setToast("Production started.");
+    setToast("Production started after the ChatGPT Go AI pipeline.");
   };
 
   const toggleRest = () => {
@@ -366,7 +375,7 @@ export default function Page() {
         </div>}
 
         <div className="card"><div className="title"><Sparkles size={14}/> Office Controls</div>
-          <button className="ctrl green" onClick={startProduction} disabled={aiRunning}><Play size={14}/> Start Production</button>
+          <button className="ctrl green" onClick={startProduction} disabled={aiRunning}><Play size={14}/>{aiPhase === "COMPLETED" ? "Start Production" : "AI Pipeline → Start Production"}</button>
           <button className="ctrl blue" onClick={toggleRest} disabled={!activeProject || aiRunning}><Pause size={14}/> {resting ? "Resume" : "Pause / Rest"}</button>
           <button className="ctrl red" onClick={stopProduction} disabled={!running || aiRunning}>■ Stop</button>
           <div className="stat" style={{marginTop:12}}><span>Current scene</span><b>{scene}/{totalScenes}</b></div>
