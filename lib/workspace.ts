@@ -14,6 +14,8 @@ export type AIProduction = {
   research?: string;
   script?: string;
   director?: string;
+  characterBible?: string;
+  imageAssets?: Array<{ sceneId: string; assetUrl: string; model?: string; generatedAt: string }>;
   model?: string;
   render?: AIRender;
   error?: string;
