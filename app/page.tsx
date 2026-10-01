@@ -9,12 +9,12 @@ import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type Workspace } from "
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
 const people = [
-  { id: "rhea", name: "Rhea", role: "Researcher", provider: "DeepSeek #1", dept: "research", color: "#73a5ff" },
-  { id: "wri", name: "Wri", role: "Scriptwriter", provider: "DeepSeek #2", dept: "script", color: "#f0bc68" },
-  { id: "dira", name: "Dira", role: "Director", provider: "DeepSeek #3", dept: "director", color: "#c58aff" },
-  { id: "gemi", name: "Gemi", role: "Image Artist", provider: "Gemini", dept: "image", color: "#68dcae" },
-  { id: "gpt", name: "GPT", role: "Video Artist", provider: "GPT", dept: "video", color: "#72c7ff" },
-  { id: "vox", name: "Vox", role: "Narrator", provider: "TTS", dept: "tts", color: "#ff8b94" },
+  { id: "rhea", name: "Rhea", role: "Researcher", provider: "ChatGPT Go", dept: "research", color: "#73a5ff" },
+  { id: "wri", name: "Wri", role: "Scriptwriter", provider: "ChatGPT Go", dept: "script", color: "#f0bc68" },
+  { id: "dira", name: "Dira", role: "Director", provider: "ChatGPT Go", dept: "director", color: "#c58aff" },
+  { id: "gemi", name: "Gemi", role: "Image Artist", provider: "ChatGPT Go", dept: "image", color: "#68dcae" },
+  { id: "gpt", name: "GPT", role: "Video Artist", provider: "ChatGPT Go", dept: "video", color: "#72c7ff" },
+  { id: "vox", name: "Vox", role: "Narrator", provider: "ChatGPT Go", dept: "tts", color: "#ff8b94" },
 ];
 
 const pipe = [
