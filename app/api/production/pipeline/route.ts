@@ -186,8 +186,12 @@ export async function POST(request: Request) {
 
     let characterBible = "";
     if (stage === "director") {
-      const match = result.text.match(/CHARACTER_BIBLE_START\\s*([\\s\\S]*?)\\s*CHARACTER_BIBLE_END/i);
-      characterBible = match?.[1]?.trim() ?? "";
+      const startMarker = result.text.indexOf("CHARACTER_BIBLE_START");
+      const contentStart = startMarker >= 0 ? startMarker + "CHARACTER_BIBLE_START".length : -1;
+      const endMarker = contentStart >= 0 ? result.text.indexOf("CHARACTER_BIBLE_END", contentStart) : -1;
+      if (contentStart >= 0 && endMarker >= 0) {
+        characterBible = result.text.slice(contentStart, endMarker).trim();
+      }
     }
 
     const scenes = stage === "director" ? parseDirectorScenes(result.text) : [];
