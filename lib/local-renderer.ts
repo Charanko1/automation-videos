@@ -6,6 +6,17 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 type SceneCue = { start: number; end: number; text: string };
+type SceneImageAsset = { assetUrl: string; narrationExcerpt?: string };
+
+function resolvePublicAssetPath(assetUrl: string) {
+  const clean = assetUrl.split("?")[0].split("#")[0];
+  if (!clean.startsWith("/generated/")) return null;
+  const relative = clean.replace(/^\/+/, "");
+  const absolute = path.resolve(process.cwd(), "public", relative);
+  const publicRoot = path.resolve(process.cwd(), "public") + path.sep;
+  if (!absolute.startsWith(publicRoot)) return null;
+  return absolute;
+}
 
 function safeName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "ai-office";
@@ -71,6 +82,7 @@ export async function renderLocalVideo(input: {
   script: string;
   director: string;
   model?: string;
+  imageAssets?: SceneImageAsset[];
 }) {
   if (process.platform !== "win32") {
     throw new Error("Local video rendering is currently implemented for Windows. It uses Windows Speech Synthesis plus FFmpeg.");
@@ -136,16 +148,95 @@ export async function renderLocalVideo(input: {
   await fs.writeFile(srtPath, srt, "utf8");
 
   const subtitleFile = subtitlePathForFfmpeg(srtPath);
+  const imageAssets = Array.isArray(input.imageAssets) ? input.imageAssets : [];
+  let visualSourcePath: string | null = null;
+  let generatedImageCount = 0;
+
+  if (imageAssets.length > 0) {
+    const imageDir = path.join(outDir, "scene-images");
+    await fs.mkdir(imageDir, { recursive: true });
+
+    const weights = imageAssets.map((asset) => Math.max(20, (asset.narrationExcerpt ?? "").length));
+    const weightTotal = Math.max(1, weights.reduce((sum, value) => sum + value, 0));
+    const clipPaths: string[] = [];
+
+    for (let index = 0; index < imageAssets.length; index += 1) {
+      const asset = imageAssets[index];
+      const imagePath = resolvePublicAssetPath(asset.assetUrl);
+      if (!imagePath) continue;
+
+      try {
+        await fs.access(imagePath);
+      } catch {
+        continue;
+      }
+
+      const clipDuration = Math.max(0.8, duration * (weights[index] / weightTotal));
+      const frames = Math.max(24, Math.ceil(clipDuration * 30));
+      const clipPath = path.join(imageDir, String(index + 1).padStart(3, "0") + ".mp4");
+      const imageFilter =
+        "scale=1280:720:force_original_aspect_ratio=decrease," +
+        "pad=1280:720:(ow-iw)/2:(oh-ih)/2," +
+        "zoompan=z='min(zoom+0.0004,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=" +
+        frames + ":s=1280x720:fps=30,format=yuv420p";
+
+      await run("ffmpeg", [
+        "-y",
+        "-loop", "1",
+        "-i", imagePath,
+        "-t", clipDuration.toFixed(3),
+        "-vf", imageFilter,
+        "-an",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        clipPath,
+      ]);
+      clipPaths.push(clipPath);
+    }
+
+    if (clipPaths.length > 0) {
+      const concatPath = path.join(imageDir, "concat.txt");
+      const concatContent = clipPaths
+        .map((file) => "file '" + file.replace(/\\/g, "/").replace(/'/g, "''") + "'")
+        .join("\n");
+      await fs.writeFile(concatPath, concatContent + "\n", "utf8");
+      const slideshowPath = path.join(imageDir, "slideshow.mp4");
+      await run("ffmpeg", [
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concatPath,
+        "-an",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-r", "30",
+        slideshowPath,
+      ]);
+      visualSourcePath = slideshowPath;
+      generatedImageCount = clipPaths.length;
+    }
+  }
+
+  const videoFilter = visualSourcePath
+    ? "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=54'"
+    : "drawbox=x=0:y=0:w=iw:h=ih:color=0x0b1020@1:t=fill," +
+      "drawbox=x=(iw-520)/2+sin(t*0.7)*220:y=90:w=520:h=8:color=0x6f8cff@0.9:t=fill," +
+      "drawbox=x=(iw-220)/2+cos(t*0.45)*360:y=ih-140:w=220:h=12:color=0x4fe0aa@0.85:t=fill," +
+      "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=54'";
   const videoFilter =
     "drawbox=x=0:y=0:w=iw:h=ih:color=0x0b1020@1:t=fill," +
     "drawbox=x=(iw-520)/2+sin(t*0.7)*220:y=90:w=520:h=8:color=0x6f8cff@0.9:t=fill," +
     "drawbox=x=(iw-220)/2+cos(t*0.45)*360:y=ih-140:w=220:h=12:color=0x4fe0aa@0.85:t=fill," +
     "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=54'";
 
-  await run("ffmpeg", [
+  const visualInput = visualSourcePath ?? null;
+  const finalVideoArgs = [
     "-y",
-    "-f", "lavfi",
-    "-i", "color=c=0x0b1020:s=1280x720:r=30",
+    ...(visualInput
+      ? ["-i", visualInput]
+      : ["-f", "lavfi", "-i", "color=c=0x0b1020:s=1280x720:r=30"]),
     "-i", audioPath,
     "-vf", videoFilter,
     "-t", duration.toFixed(3),
@@ -157,7 +248,8 @@ export async function renderLocalVideo(input: {
     "-shortest",
     "-movflags", "+faststart",
     videoPath,
-  ]);
+  ];
+  await run("ffmpeg", finalVideoArgs);
 
   await run("ffmpeg", ["-y", "-ss", "0", "-i", videoPath, "-frames:v", "1", "-q:v", "2", thumbnailPath]);
 
@@ -166,10 +258,11 @@ export async function renderLocalVideo(input: {
     title: input.title,
     model: input.model ?? null,
     generatedAt: new Date().toISOString(),
-    type: "local-captioned-video",
+    type: generatedImageCount > 0 ? "local-image-slideshow-video" : "local-captioned-video",
     durationSeconds: Number(duration.toFixed(3)),
     scenes: cues.length,
-    note: "Video rendered locally from the ChatGPT-generated script. Visuals are synthetic motion graphics; no external AI image/video/TTS provider was used.",
+    imageScenes: generatedImageCount,
+    note: generatedImageCount > 0 ? "Video rendered locally with Windows Speech Synthesis + FFmpeg using generated Cloudflare Workers AI scene images, subtitles, and a slow camera move per scene." : "Video rendered locally from the ChatGPT-generated script. Visuals are synthetic motion graphics; no external AI image/video/TTS provider was used.",
     files: {
       script: "script.txt",
       director: "director-scene-plan.txt",
