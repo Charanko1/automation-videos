@@ -93,35 +93,85 @@ export async function POST(request: Request) {
         ],
         tool_choice: { type: "image_generation" },
         store: false,
-        stream: false,
+        stream: true,
       }),
       cache: "no-store",
     });
 
-    const data = await response.json().catch(() => ({}));
+    const raw = await response.text();
 
     if (!response.ok) {
+      let data: any = {};
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        const dataLine = raw.split("\n").find((line) => line.startsWith("data: "));
+        if (dataLine) {
+          try {
+            data = JSON.parse(dataLine.slice(6));
+          } catch {}
+        }
+      }
+
       return NextResponse.json({
         ok: false,
         stage: "image_generation",
         status: response.status,
-        code: data?.error?.code ?? null,
-        error: data?.error?.message ?? data?.detail ?? "The ChatGPT plan rejected image generation through this integration.",
+        code: data?.error?.code ?? data?.code ?? null,
+        error: data?.error?.message ?? data?.message ?? raw.slice(0, 1000) ?? "The ChatGPT plan rejected image generation through this integration.",
       }, { status: response.status });
     }
 
-    const imageCall = Array.isArray(data?.output)
-      ? data.output.find((item: { type?: string; result?: string; status?: string }) =>
-          item?.type === "image_generation_call" && typeof item?.result === "string"
-        )
-      : null;
+    let imageBase64 = "";
+    let streamError: string | null = null;
 
-    if (!imageCall?.result) {
+    for (const block of raw.split(/\r?\n\r?\n/)) {
+      const dataLine = block
+        .split(/\r?\n/)
+        .find((line) => line.startsWith("data: "));
+      if (!dataLine) continue;
+
+      const payload = dataLine.slice(6).trim();
+      if (!payload || payload === "[DONE]") continue;
+
+      try {
+        const event = JSON.parse(payload);
+
+        if (event?.type === "response.output_item.done") {
+          const item = event?.item;
+          if (item?.type === "image_generation_call" && typeof item?.result === "string") {
+            imageBase64 = item.result;
+          }
+        }
+
+        if (event?.type === "response.completed") {
+          const output = event?.response?.output;
+          if (Array.isArray(output)) {
+            const imageCall = output.find(
+              (item: { type?: string; result?: string }) =>
+                item?.type === "image_generation_call" && typeof item?.result === "string",
+            );
+            if (imageCall?.result) imageBase64 = imageCall.result;
+          }
+        }
+
+        if (event?.type === "error" || event?.type === "response.failed") {
+          streamError =
+            event?.error?.message ??
+            event?.response?.error?.message ??
+            "The image generation stream failed.";
+        }
+      } catch {
+        // Ignore non-JSON SSE frames.
+      }
+    }
+
+    if (!imageBase64) {
       return NextResponse.json({
         ok: false,
         stage: "image_generation",
-        code: "image_generation_no_result",
-        error: "The request succeeded, but no image_generation_call result was returned.",
+        code: streamError ? "image_generation_stream_error" : "image_generation_no_result",
+        error: streamError ?? "The request streamed successfully, but no image_generation_call result was returned.",
         model: model.slug,
       }, { status: 502 });
     }
@@ -131,7 +181,7 @@ export async function POST(request: Request) {
       stage: "image_generation",
       model: model.slug,
       displayName: model.display_name ?? model.slug,
-      imageBase64: imageCall.result,
+      imageBase64,
       message: "Image generation succeeded through the ChatGPT plan token.",
     });
   } catch (error) {
