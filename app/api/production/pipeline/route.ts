@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateWithChatGPT } from "../../../../lib/chatgpt";
 
-const MAX_TITLE = 200;
+type Stage = "research" | "script" | "director";
 
 export async function POST(request: Request) {
   if (process.env.NODE_ENV !== "development") {
@@ -13,35 +13,49 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const title = typeof body?.title === "string" ? body.title.trim().slice(0, MAX_TITLE) : "";
-    const type = typeof body?.type === "string" ? body.type.trim().slice(0, 80) : "General";
+    const stage = body?.stage as Stage;
+    const title = typeof body?.title === "string" ? body.title.trim().slice(0, 200) : "";
+    const format = typeof body?.format === "string" ? body.format.trim().slice(0, 80) : "General";
+    const research = typeof body?.research === "string" ? body.research.trim() : "";
+    const script = typeof body?.script === "string" ? body.script.trim() : "";
 
+    if (!["research", "script", "director"].includes(stage)) {
+      return NextResponse.json({ ok: false, error: "stage must be research, script, or director." }, { status: 400 });
+    }
     if (!title) {
       return NextResponse.json({ ok: false, error: "Project title is required." }, { status: 400 });
     }
+    if (stage === "script" && !research) {
+      return NextResponse.json({ ok: false, error: "Research brief is required before script generation." }, { status: 400 });
+    }
+    if (stage === "director" && !script) {
+      return NextResponse.json({ ok: false, error: "Script is required before director planning." }, { status: 400 });
+    }
 
-    const research = await generateWithChatGPT(
-      [
+    let prompt = "";
+
+    if (stage === "research") {
+      prompt = [
         "You are Rhea, the Researcher in an AI YouTube production office.",
         `Project title: ${title}`,
-        `Format: ${type}`,
+        `Format: ${format}`,
         "",
-        "Research the topic for a factual YouTube production brief.",
+        "Create a factual research brief for this YouTube project.",
         "Return:",
-        "1. A concise topic thesis.",
+        "1. Concise topic thesis.",
         "2. Five key facts or claims to cover.",
         "3. Important context and definitions.",
-        "4. Three claims that should be fact-checked before publishing.",
-        "5. A suggested audience angle.",
-        "Keep the result structured and practical. Do not invent citations or claim to browse the web.",
-      ].join("\n"),
-    );
+        "4. Three claims that must be fact-checked before publishing.",
+        "5. Suggested audience angle.",
+        "Keep it structured and practical. Do not invent citations or claim to browse the web.",
+      ].join("\n");
+    }
 
-    const script = await generateWithChatGPT(
-      [
+    if (stage === "script") {
+      prompt = [
         "You are Wri, the Scriptwriter in an AI YouTube production office.",
         `Project title: ${title}`,
-        `Format: ${type}`,
+        `Format: ${format}`,
         "",
         "Use the research brief below to write a YouTube script.",
         "Requirements:",
@@ -49,19 +63,19 @@ export async function POST(request: Request) {
         "- Clear narration with short paragraphs.",
         "- Natural transitions.",
         "- No fabricated sources, quotes, statistics, or events.",
-        "- Mark any statement that needs fact-checking as [VERIFY].",
+        "- Mark statements needing external fact-checking as [VERIFY].",
         "- End with a concise takeaway and call to action.",
         "",
         "RESEARCH BRIEF:",
-        research.text,
-      ].join("\n"),
-    );
+        research,
+      ].join("\n");
+    }
 
-    const director = await generateWithChatGPT(
-      [
+    if (stage === "director") {
+      prompt = [
         "You are Dira, the Director in an AI YouTube production office.",
         `Project title: ${title}`,
-        `Format: ${type}`,
+        `Format: ${format}`,
         "",
         "Turn the script into a production-ready scene plan.",
         "Return 8-12 numbered scenes.",
@@ -72,29 +86,26 @@ export async function POST(request: Request) {
         "- Camera / motion direction",
         "- On-screen text",
         "- Asset requirement",
-        "Keep visual instructions concrete enough for a later media renderer. Do not claim that ChatGPT generated the media itself.",
+        "Keep visual instructions concrete for a later media renderer.",
+        "Do not claim that ChatGPT generated any image, audio, or video asset.",
         "",
         "SCRIPT:",
-        script.text,
-      ].join("\n"),
-    );
+        script,
+      ].join("\n");
+    }
+
+    const result = await generateWithChatGPT(prompt);
 
     return NextResponse.json({
       ok: true,
-      model: director.model,
-      displayName: director.displayName,
-      stages: {
-        research: research.text,
-        script: script.text,
-        director: director.text,
-      },
+      stage,
+      model: result.model,
+      displayName: result.displayName,
+      text: result.text,
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : "AI pipeline failed.",
-      },
+      { ok: false, stage: (await request.clone().json().catch(() => ({})))?.stage ?? null, error: error instanceof Error ? error.message : "AI pipeline failed." },
       { status: 502 },
     );
   }
