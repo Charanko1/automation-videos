@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Bell, Check, Save, Settings as SettingsIcon, Shield, SlidersHorizontal, Bot, ExternalLink, TestTube2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import GeminiImageTest from "../../components/GeminiImageTest";
 import { DEFAULT_SETTINGS, EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type ProductionSettings, type Workspace } from "../../lib/workspace";
 
 export default function SettingsPage() {
@@ -189,6 +190,7 @@ export default function SettingsPage() {
         {chatgptResult && <div className="notice" style={{marginTop:10,whiteSpace:"pre-wrap"}}>{chatgptResult}</div>}
         <div className="muted" style={{fontSize:11,marginTop:10}}>Run this test from <b>http://127.0.0.1:3000</b>. Credentials are stored only in a local ignored file during development.</div>
       </div>
+      <GeminiImageTest />
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
           ["ChatGPT Go","Primary AI brain for research, scripts, direction, visual prompts, motion plans, and narration"],
