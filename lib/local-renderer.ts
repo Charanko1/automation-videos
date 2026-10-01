@@ -89,7 +89,9 @@ export async function renderLocalVideo(input: {
 
   const scriptPath = path.join(outDir, "script.txt");
   const directorPath = path.join(outDir, "director-scene-plan.txt");
-  const ps1Path = path.join(outDir, "make-voice.ps1");
+  const tempDir = path.join(process.cwd(), ".ai-office-render-temp");
+  await fs.mkdir(tempDir, { recursive: true });
+  const ps1Path = path.join(tempDir, "make-voice-" + safeName(input.projectId) + "-" + Date.now() + ".ps1");
   const audioPath = path.join(outDir, "narration.wav");
   const srtPath = path.join(outDir, "subtitles.srt");
   const videoPath = path.join(outDir, "final.mp4");
@@ -178,6 +180,7 @@ export async function renderLocalVideo(input: {
     },
   };
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+  await fs.rm(ps1Path, { force: true }).catch(() => undefined);
 
   const publicBase = "/generated/" + projectSlug;
   return {
