@@ -1,28 +1,22 @@
 import { NextResponse } from "next/server";
 
 const DEFAULT_MODEL = "gemini-3.1-flash-image";
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
 
-type GeminiPart = {
-  text?: string;
-  inlineData?: {
-    mimeType?: string;
-    data?: string;
-  };
+type ImageBlock = {
+  type?: string;
+  data?: string;
+  mime_type?: string;
 };
 
-type GeminiResponse = {
-  candidates?: Array<{
-    content?: {
-      parts?: GeminiPart[];
-    };
+type GeminiInteraction = {
+  id?: string;
+  status?: string;
+  steps?: Array<{
+    type?: string;
+    content?: ImageBlock[];
   }>;
-  promptFeedback?: unknown;
-  error?: {
-    code?: number;
-    message?: string;
-    status?: string;
-  };
+  error?: { code?: number; message?: string; status?: string };
 };
 
 export async function POST(request: Request) {
@@ -30,11 +24,7 @@ export async function POST(request: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        {
-          ok: false,
-          code: "gemini_api_key_missing",
-          error: "GEMINI_API_KEY is not configured. Add it to .env.local and restart Next.js.",
-        },
+        { ok: false, code: "gemini_api_key_missing", error: "GEMINI_API_KEY is not configured. Add it to .env.local and restart Next.js." },
         { status: 503 },
       );
     }
@@ -50,29 +40,26 @@ export async function POST(request: Request) {
         ? body.model.trim()
         : process.env.GEMINI_IMAGE_MODEL?.trim() || DEFAULT_MODEL;
 
-    const response = await fetch(
-      `${ENDPOINT}/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            responseModalities: ["IMAGE"],
-          },
-        }),
-        cache: "no-store",
+    const response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        model,
+        input: prompt,
+        response_format: {
+          type: "image",
+          aspect_ratio: "16:9",
+          image_size: "1K",
+        },
+        store: false,
+      }),
+      cache: "no-store",
+    });
 
-    const data = (await response.json().catch(() => ({}))) as GeminiResponse;
+    const data = (await response.json().catch(() => ({}))) as GeminiInteraction;
 
     if (!response.ok) {
       return NextResponse.json(
@@ -86,25 +73,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const parts = data.candidates?.[0]?.content?.parts ?? [];
-    const imagePart = parts.find(
-      (part) =>
-        typeof part.inlineData?.data === "string" &&
-        part.inlineData.data.length > 0,
+    const imageStep = data.steps?.find((step) => step.type === "model_output");
+    const imageBlock = imageStep?.content?.find(
+      (block) => block.type === "image" && typeof block.data === "string" && block.data.length > 0,
     );
 
-    if (!imagePart?.inlineData?.data) {
+    if (!imageBlock?.data) {
       return NextResponse.json(
         {
           ok: false,
           code: "gemini_image_no_result",
           error: "Gemini responded successfully, but no image data was returned.",
           model,
-          text: parts
-            .map((part) => part.text)
-            .filter(Boolean)
-            .join("\n")
-            .slice(0, 1000),
         },
         { status: 502 },
       );
@@ -115,17 +95,13 @@ export async function POST(request: Request) {
       stage: "image_generation",
       provider: "Google Gemini API",
       model,
-      mimeType: imagePart.inlineData.mimeType ?? "image/png",
-      imageBase64: imagePart.inlineData.data,
+      mimeType: imageBlock.mime_type ?? "image/png",
+      imageBase64: imageBlock.data,
       message: "Gemini image generation succeeded.",
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        ok: false,
-        code: "gemini_image_test_exception",
-        error: error instanceof Error ? error.message : "Unknown Gemini error.",
-      },
+      { ok: false, code: "gemini_image_test_exception", error: error instanceof Error ? error.message : "Unknown Gemini error." },
       { status: 500 },
     );
   }
