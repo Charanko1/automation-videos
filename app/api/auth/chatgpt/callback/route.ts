@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { NextResponse } from "next/server";
-import { hasPlanScope, saveCredential } from "../../../../../lib/chatgpt-auth";
+import { hasPlanScope, readCredential, saveCredential } from "../../../../../lib/chatgpt-auth";
 
 const TOKEN_ENDPOINT = "https://auth.openai.com/api/accounts/oauth/token";
 const REDIRECT_URI = "http://127.0.0.1:3000/api/auth/chatgpt/callback";
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const issuedClientId = url.searchParams.get("client_id");
+  const callbackClientId = url.searchParams.get("client_id");
   const oauthError = url.searchParams.get("error");
 
   const jar = await cookies();
@@ -29,15 +29,17 @@ export async function GET(request: Request) {
   const nonce = jar.get("ai_office_oai_nonce")?.value;
   const verifier = jar.get("ai_office_oai_verifier")?.value;
   const hostId = jar.get("ai_office_oai_host")?.value;
+  const savedCredential = await readCredential();
+  const clientId = callbackClientId || savedCredential?.clientId;
 
   if (oauthError) return finish(`OpenAI authorization: ${oauthError}`, true);
-  if (!code || !state || state !== savedState || !nonce || !verifier || !hostId || !issuedClientId) {
+  if (!code || !state || state !== savedState || !nonce || !verifier || !hostId || !clientId) {
     return finish("OAuth callback validation failed.", true);
   }
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",
-    client_id: issuedClientId,
+    client_id: clientId,
     code,
     code_verifier: verifier,
     redirect_uri: REDIRECT_URI,
@@ -60,7 +62,7 @@ export async function GET(request: Request) {
   try {
     identity = await jwtVerify(tokenJson.id_token, JWKS, {
       issuer: ISSUER,
-      audience: issuedClientId,
+      audience: clientId,
       requiredClaims: ["sub", "exp", "iat"],
       clockTolerance: 5,
     });
@@ -79,7 +81,7 @@ export async function GET(request: Request) {
     email: typeof identity.payload.email === "string" ? identity.payload.email : undefined,
     name: typeof identity.payload.name === "string" ? identity.payload.name : undefined,
     subject: identity.payload.sub,
-    clientId: issuedClientId,
+    clientId,
     extAgentHostId: hostId,
     idToken: tokenJson.id_token,
     accessToken: tokenJson.access_token,
@@ -93,7 +95,7 @@ export async function GET(request: Request) {
   const enabled = hasPlanScope(scopes);
   return finish(
     enabled
-      ? "ChatGPT plan permission granted. Ready for a test request."
+      ? "ChatGPT plan permission granted. Ready for AI Office generation."
       : "Signed in, but ChatGPT plan usage was not granted to this account.",
     false,
   );
