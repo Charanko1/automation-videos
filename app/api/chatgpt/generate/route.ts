@@ -154,12 +154,13 @@ export async function POST(request: Request) {
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
 
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex >= 0) {
-        const block = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
+      while (true) {
+        const match = /\r?\n\r?\n/.exec(buffer);
+        if (!match || match.index === undefined) break;
+
+        const block = buffer.slice(0, match.index);
+        buffer = buffer.slice(match.index + match[0].length);
         consumeBlock(block);
-        separatorIndex = buffer.indexOf("\n\n");
       }
     }
 
