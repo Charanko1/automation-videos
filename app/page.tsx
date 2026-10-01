@@ -61,8 +61,8 @@ export default function Page() {
   const totalScenes = activeProject?.totalScenes ?? workspace.settings.scenesPerVideo;
   const pct = activeProject ? Math.round((scene / Math.max(totalScenes, 1)) * 100) : 0;
   const completedVideos = workspace.projects.filter((project) => project.status === "COMPLETED").length;
-  const stage = projectStage(scene, totalScenes, aiPhase === "COMPLETED");
   const aiPhase = activeProject?.ai?.phase ?? "IDLE";
+  const stage = projectStage(scene, totalScenes, aiPhase === "COMPLETED");
   const officeActive = running || aiRunning;
 
   useEffect(() => {
