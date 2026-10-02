@@ -172,7 +172,7 @@ export default function Page() {
       const researchResponse = await fetch("/api/production/pipeline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: "research", title: activeProject.title, format: activeProject.type }),
+        body: JSON.stringify({ stage: "research", title: activeProject.title, format: activeProject.type, sceneCount: Math.min(12, Math.max(6, activeProject.totalScenes)) }),
       });
       const researchData = await researchResponse.json();
       if (!researchResponse.ok || !researchData.ok) {
@@ -194,6 +194,7 @@ export default function Page() {
           stage: "script",
           title: activeProject.title,
           format: activeProject.type,
+          sceneCount: Math.min(12, Math.max(6, activeProject.totalScenes)),
           research: researchData.text,
         }),
       });
@@ -217,6 +218,7 @@ export default function Page() {
           stage: "director",
           title: activeProject.title,
           format: activeProject.type,
+          sceneCount: Math.min(12, Math.max(6, activeProject.totalScenes)),
           script: scriptData.text,
         }),
       });
@@ -234,6 +236,7 @@ export default function Page() {
         phase: "IMAGES",
         director: directorData.text,
         characterBible: directorData.characterBible ?? "",
+        scenePlans: directorData.scenes ?? [],
         imageAssets: [],
         model: directorData.model ?? scriptData.model ?? researchData.model,
         error: undefined,
@@ -260,6 +263,11 @@ export default function Page() {
             sceneId: scenePlan.sceneId,
             prompt: scenePlan.visualPrompt,
             characterBible: directorData.characterBible ?? "",
+            referenceCharacterIds: scenePlan.referenceCharacterIds ?? [],
+            charactersPresent: scenePlan.charactersPresent ?? [],
+            emotionalBeat: scenePlan.emotionalBeat ?? "",
+            cameraAndComposition: scenePlan.cameraAndComposition ?? "",
+            characterActions: scenePlan.characterActions ?? "",
           }),
         });
         const imageData = await imageResponse.json().catch(() => ({}));
@@ -284,6 +292,7 @@ export default function Page() {
       // AI pre-production is now complete: the project has a scene plan plus real image assets.
       updateActiveAI({
         phase: "COMPLETED",
+        scenePlans: directorData.scenes ?? [],
         imageAssets: generatedAssets,
         director: directorData.text,
         characterBible: directorData.characterBible ?? "",
@@ -496,7 +505,21 @@ export default function Page() {
           <div className="title"><Bot size={14}/> AI Artifacts</div>
           <details><summary className="mini">Research brief</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:220,overflow:"auto"}}>{activeProject.ai.research}</div></details>
           <details style={{marginTop:8}}><summary className="mini">Script</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:260,overflow:"auto"}}>{activeProject.ai.script}</div></details>
-          <details style={{marginTop:8}}><summary className="mini">Director scene plan</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:280,overflow:"auto"}}>{activeProject.ai.director}</div></details>
+          <details style={{marginTop:8}}><summary className="mini">Director scene plan · drama</summary>
+            <div className="notice" style={{marginTop:8,maxHeight:360,overflow:"auto"}}>
+              {(activeProject.ai.scenePlans ?? []).map((scenePlan) => (
+                <div key={scenePlan.sceneId} style={{padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+                  <div style={{fontWeight:800,fontSize:11}}>{scenePlan.sceneId} · {scenePlan.emotionalBeat ?? "dramatic beat"}</div>
+                  <div className="muted" style={{fontSize:10,marginTop:4}}>{scenePlan.charactersPresent?.join(" + ") || "characters pending"} · {scenePlan.cameraAndComposition ?? "shot unspecified"}</div>
+                  {(scenePlan.dialogue ?? []).map((line, lineIndex) => (
+                    <div key={lineIndex} style={{marginTop:6,fontSize:11}}>
+                      <b>{line.speaker}:</b> {line.line}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </details>
           {activeProject.ai.imageAssets && activeProject.ai.imageAssets.length > 0 && <div style={{marginTop:12}}>
             <div className="mini" style={{marginBottom:8}}>Gemi scene images · {activeProject.ai.imageAssets.length}</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
