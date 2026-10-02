@@ -46,8 +46,8 @@ function cleanDialogueLine(text: string) {
   return text
     .replace(/\r/g, " ")
     .replace(/<think>[\s\S]*?<\/think>/gi, " ")
-    .replace(/^\s*[A-Z][A-Z0-9 _-]{0,30}\\s*:\\s*/i, "")
-    .replace(/^\s*["“](.*)["”]\\s*$/s, "$1")
+    .replace(/^\s*[A-Z][A-Z0-9 _-]{0,30}\s*:\s*/i, "")
+    .replace(/^\s*["“](.*)["”]\s*$/s, "$1")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -60,17 +60,17 @@ function cleanNarrationText(text: string) {
     let line = rawLine.trim();
     if (!line) continue;
 
-    if (/^\s*#{1,6}\\s+/.test(line)) continue;
-    if (/^(INT\.|EXT\\.|INT\\/EXT\\.|SCENE\\s*\\d+)/i.test(line)) continue;
+    if (/^\s*#{1,6}\s+/.test(line)) continue;
+    if (/^(INT\.|EXT\.|INT\\/EXT\.|SCENE\s*\d+)/i.test(line)) continue;
 
     const labelMatch = line.match(
-      /^\\s*(HOOK|INTRO|OUTRO|TRANSISI|TRANSITION|TAKEAWAY|NARASI|VOICE[- ]?OVER|VISUAL|SHOT|B-?ROLL)\s*[:\-]\s*(.*)$/i,
+      /^\s*(HOOK|INTRO|OUTRO|TRANSISI|TRANSITION|TAKEAWAY|NARASI|VOICE[- ]?OVER|VISUAL|SHOT|B-?ROLL)\s*[:\-]\s*(.*)$/i,
     );
     if (labelMatch) line = labelMatch[2].trim();
 
-    line = line.replace(/^\s*\\([^)]{1,160}\\)\\s*/g, "");
-    line = line.replace(/^\s*\\[[^\\]]{1,160}\\]\\s*/g, "");
-    line = line.replace(/^\s*[-*•]\\s+/, "").trim();
+    line = line.replace(/^\s*\([^)]{1,160}\)\s*/g, "");
+    line = line.replace(/^\s*\[[^\]]{1,160}\]\s*/g, "");
+    line = line.replace(/^\s*[-*•]\s+/, "").trim();
 
     if (line) output.push(line);
   }
@@ -80,7 +80,7 @@ function cleanNarrationText(text: string) {
 
 function chunkText(text: string, maxChars = 120) {
   const normalized = text
-    .replace(/\\r/g, "")
+    .replace(/\r/g, "")
     .replace(/\n+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -408,7 +408,7 @@ export async function renderLocalVideo(input: {
           file.replace(/\\/g, "/").replace(/'/g, "''") +
           "'",
       )
-      .join("\\n") + "\\n",
+      .join("\n") + "\n",
     "utf8",
   );
 
@@ -602,7 +602,7 @@ export async function renderLocalVideo(input: {
           file.replace(/\\/g, "/").replace(/'/g, "''") +
           "'",
       )
-      .join("\\n") + "\\n",
+      .join("\n") + "\n",
     "utf8",
   );
 
