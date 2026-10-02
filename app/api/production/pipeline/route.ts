@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         "character_bible must define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
         `Create exactly ${requestedSceneCount} scenes. Do not create more or fewer.`,
         "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
-        "dialogue is an array of objects: speaker, character_id, line, emotion.",
+        "dialogue is an array of objects: speaker, character_id, line, emotion. Every scene must contain at least one dialogue line for this production pass.",
         "characters_present is an array of character_id values visible in the shot.",
         "reference_character_ids must contain every recurring character visible in the shot.",
         "narration_excerpt should be empty when dialogue and acting already carry the scene. Do not invent narration just to fill the field.",
@@ -140,9 +140,16 @@ export async function POST(request: Request) {
       }
 
       const dialogueLineCount = dramaPlan.scenes.reduce((count, scene) => count + (scene.dialogue?.length ?? 0), 0);
-      if (dialogueLineCount === 0) {
+      const silentScenes = dramaPlan.scenes.filter((scene) => (scene.dialogue?.length ?? 0) === 0);
+      if (dialogueLineCount === 0 || silentScenes.length > 0) {
         return NextResponse.json(
-          { ok: false, error: "Director returned no dialogue lines. Regenerate the director stage with character dialogue." },
+          {
+            ok: false,
+            error:
+              silentScenes.length > 0
+                ? `Director returned ${silentScenes.length} scene(s) without dialogue. Every scene must have at least one character line for this production pass.`
+                : "Director returned no dialogue lines. Regenerate the director stage with character dialogue.",
+          },
           { status: 502 },
         );
       }
