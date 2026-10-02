@@ -25,13 +25,16 @@ export async function POST(request: Request) {
 
     const fullPrompt = [
       "You are Gemi, the Image Artist for AI Office.",
-      "Generate ONE production-ready 16:9 cinematic image for a video scene.",
-      "Character consistency is mandatory.",
+      "Generate ONE production-ready 16:9 cinematic frame from an ongoing character-driven drama scene.",
+      "Character consistency and acting continuity are mandatory.",
+      "This frame must look like a shot from a 3D animated film, not concept art, poster art, or a documentary illustration.",
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
       "SCENE PROMPT:\n" + prompt,
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
       "STYLE LOCK: cute polished 3D animated film frame, chibi/toy-like proportions, soft rounded geometry, expressive friendly faces, high-quality 3D materials, subtle depth of field, cinematic lighting, warm playful family-friendly mood, coherent art direction across all scenes.",
-      "CAMERA DIRECTION: stage the scene like an animated movie shot, with clear foreground/midground/background separation and visible character action.",
+      "ACTING DIRECTION: show the named characters interacting, reacting, looking at each other, holding relevant props, and expressing the emotional beat implied by the scene.",
+      "CAMERA DIRECTION: stage the shot like an animated movie scene: two-shots, over-the-shoulder, close-up, reaction shot, or establishing shot. Keep eye-lines, blocking, scale, and spatial relationships readable.",
+      "CONTINUITY: preserve recurring character identity, costume, proportions, props, location, time of day, and emotional state from the supplied character bible and scene prompt.",
       "STRICTLY AVOID: comic book, manga, anime, 2D illustration, graphic novel, flat vector artwork, thick ink outlines, sketch, watercolor, photorealistic photography, horror, gritty realism, text overlays, captions, subtitles, logos, UI panels.",
     ].filter(Boolean).join("\n\n");
 
