@@ -77,6 +77,7 @@ export async function POST(request: Request) {
         height: 576,
         numSteps: 4,
         imageBase64: referenceImageBase64 || undefined,
+        negativePrompt,
       });
       provider = "Cloudflare Workers AI";
     }
