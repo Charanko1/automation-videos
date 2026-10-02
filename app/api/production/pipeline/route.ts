@@ -50,10 +50,10 @@ function extractFirstJsonObject(text: string) {
     if (inString) {
       if (escaped) escaped = false;
       else if (char === "\\") escaped = true;
-      else if (char === """) inString = false;
+      else if (char === '"') inString = false;
       continue;
     }
-    if (char === """) { inString = true; continue; }
+    if (char === '"') { inString = true; continue; }
     if (char === "{") depth += 1;
     if (char === "}") {
       depth -= 1;
