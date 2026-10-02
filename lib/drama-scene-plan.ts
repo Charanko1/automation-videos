@@ -84,7 +84,7 @@ function extractBalancedJsonValues(text: string) {
 
       if (inString) {
         if (escaped) escaped = false;
-        else if (char === "\\\\") escaped = true;
+        else if (char === "\\") escaped = true;
         else if (char === '"') inString = false;
         continue;
       }
@@ -142,8 +142,8 @@ function extractRawPlan(text: string) {
   if (directCandidate) return directCandidate;
 
   const source = stripThinkingText(text)
-    .replace(/^\\`\\`\\`json\\s*/i, "")
-    .replace(/\\s*\\`\\`\\`$/i, "")
+    .replace(/^\`\`\`json\s*/i, "")
+    .replace(/\s*\`\`\`$/i, "")
     .trim();
 
   try {
