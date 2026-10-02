@@ -482,7 +482,7 @@ export async function renderLocalVideo(input: {
         formatSrtTime(cue.end) +
         "\n" +
         cue.text +
-        "\\n",
+        "\n",
     )
     .join("\n");
 
