@@ -95,7 +95,7 @@ export async function POST(request: Request) {
         "",
         "STRICT OUTPUT: return exactly ONE valid JSON object and nothing else. No markdown fences. No commentary.",
         "Top-level keys: character_bible and scenes.",
-        "character_bible must define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
+        "character_bible must be a JSON array of character objects (not a prose paragraph) and must define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
         `Create exactly ${requestedSceneCount} scenes. Do not create more or fewer.`,
         "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
         "dialogue is an array of objects: speaker, character_id, line, emotion. Every scene must contain at least one dialogue line for this production pass.",
