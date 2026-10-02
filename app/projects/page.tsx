@@ -9,7 +9,7 @@ export default function ProjectsPage() {
   const [workspace, setWorkspace] = useState<Workspace>(EMPTY_WORKSPACE);
   const [title, setTitle] = useState("");
   const [type, setType] = useState("Drama");
-  const [scenes, setScenes] = useState("12");
+  const [scenes, setScenes] = useState("8");
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function ProjectsPage() {
     });
     setTitle("");
     setType("Drama");
-    setScenes("12");
+    setScenes("8");
     setShowForm(false);
   };
 
