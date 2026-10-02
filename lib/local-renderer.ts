@@ -235,9 +235,10 @@ async function createDialogueAudio(options: {
     "$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer",
     "$synth.Rate = 0",
     "$synth.Volume = 100",
-    "$items = @(Get-Content -Raw -LiteralPath '" +
+    "$parsedItems = Get-Content -Raw -LiteralPath '" +
       escapePowerShellSingle(dialogueJsonPath) +
-      "' | ConvertFrom-Json)",
+      "' | ConvertFrom-Json",
+    "$items = @($parsedItems | ForEach-Object { $_ })",
     "$voiceNames = @($synth.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo.Name } | Where-Object { $_ })",
     "$voiceMap = @{}",
     "$voiceIndex = 0",
