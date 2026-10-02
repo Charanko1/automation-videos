@@ -34,16 +34,23 @@ async function requestOmniRoute(path: string, init: RequestInit = {}) {
     );
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
 
-  return response;
+    return response;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Cannot reach OmniRoute at ${baseUrl}. Make sure OmniRoute is running on port 20128 and OMNIROUTE_BASE_URL is correct. Original error: ${detail}`,
+    );
+  }
 }
 
 export async function checkOmniRoute(): Promise<{ modelCount: number; models: string[] }> {
