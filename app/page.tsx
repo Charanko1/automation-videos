@@ -9,8 +9,8 @@ import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type AIProduction, type
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
 const people = [
-  { id: "rhea", name: "Rhea", role: "Researcher", provider: "OmniRoute · Free Provider Router", dept: "research", color: "#73a5ff" },
-  { id: "wri", name: "Wri", role: "Scriptwriter", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
+  { id: "rhea", name: "Rhea", role: "Story Researcher", provider: "OmniRoute · Free Provider Router", dept: "research", color: "#73a5ff" },
+  { id: "wri", name: "Wri", role: "Screenwriter", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "Image Artist", provider: "Cloudflare Workers AI", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "ChatGPT Go", dept: "video", color: "#72c7ff" },
@@ -18,17 +18,17 @@ const people = [
 ];
 
 const pipe = [
-  ["Research", "Find topics"], ["Script", "Write narrative"], ["Director", "Plan shots"], ["Images", "Generate art"],
+  ["Story", "Build world + cast"], ["Screenplay", "Write dialogue"], ["Director", "Block actors"], ["Characters", "Generate keyframes"],
   ["Video", "Animate art"], ["TTS", "Create voice"], ["Editing", "Render final"], ["Upload", "Publish"],
 ];
 
 const aiPhaseLabel: Record<string, string> = {
   IDLE: "Ready",
-  RESEARCH: "Rhea · Researching",
-  SCRIPT: "Wri · Writing",
-  DIRECTOR: "Dira · Planning",
-  IMAGES: "Gemi · Generating scene images",
-  COMPLETED: "Pre-production + Gemi images complete",
+  RESEARCH: "Rhea · Building story",
+  SCRIPT: "Wri · Writing screenplay",
+  DIRECTOR: "Dira · Blocking scenes",
+  IMAGES: "Gemi · Generating character keyframes",
+  COMPLETED: "Drama pre-production complete",
   FAILED: "Pipeline failed",
 };
 
@@ -185,7 +185,7 @@ export default function Page() {
         model: researchData.model,
         error: undefined,
       });
-      setToast("Rhea finished. Wri is writing the script with OmniRoute · Free Provider Router.");
+      setToast("Rhea finished. Wri is writing the screenplay and dialogue.");
 
       const scriptResponse = await fetch("/api/production/pipeline", {
         method: "POST",
@@ -208,7 +208,7 @@ export default function Page() {
         model: scriptData.model ?? researchData.model,
         error: undefined,
       });
-      setToast("Wri finished. Dira is turning the script into a scene plan with OmniRoute.");
+      setToast("Wri finished. Dira is blocking the actors and planning the drama scenes.");
 
       const directorResponse = await fetch("/api/production/pipeline", {
         method: "POST",
@@ -245,7 +245,7 @@ export default function Page() {
         totalScenes: directorScenes.length,
       });
       setScene(0);
-      setToast(`Dira finished. Gemi is generating ${directorScenes.length} scene images with Cloudflare Workers AI.`);
+      setToast(`Dira finished. Gemi is generating ${directorScenes.length} cinematic drama keyframes.`);
 
       const generatedAssets: NonNullable<AIProduction["imageAssets"]> = [];
       for (let index = 0; index < directorScenes.length; index += 1) {
@@ -296,7 +296,7 @@ export default function Page() {
       setScene(0);
       setRunning(true);
       setResting(false);
-      setToast("AI pipeline complete. Research → Script → Director → Gemi Images → Production started.");
+      setToast("AI pipeline complete. Story → Screenplay → Director → Character Keyframes → Production started.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI pipeline failed.";
@@ -369,7 +369,7 @@ export default function Page() {
     updateActiveProject({ status: "PRODUCING" });
     setRunning(true);
     setResting(false);
-    setToast("Production started after the OmniRoute Free + Cloudflare Workers AI pipeline.");
+    setToast("Production started after the OmniRoute drama pipeline.");
   };
 
   const toggleRest = () => {
@@ -416,22 +416,22 @@ export default function Page() {
 
   const workerTask = (person: (typeof people)[number]) => {
     if (aiRunning) {
-      if (person.dept === "research" && aiPhase === "RESEARCH") return "Researching project";
-      if (person.dept === "script" && aiPhase === "SCRIPT") return "Writing YouTube script";
-      if (person.dept === "director" && aiPhase === "DIRECTOR") return "Planning production scenes";
+      if (person.dept === "research" && aiPhase === "RESEARCH") return "Building story world";
+      if (person.dept === "script" && aiPhase === "SCRIPT") return "Writing screenplay dialogue";
+      if (person.dept === "director" && aiPhase === "DIRECTOR") return "Blocking actors + camera";
       if (person.dept === "image" && aiPhase === "IMAGES") {
         const count = activeProject?.ai?.imageAssets?.length ?? 0;
         const total = activeProject?.totalScenes ?? 0;
-        return total ? `Generating scene images · ${count}/${total}` : "Generating scene images";
+        return total ? `Generating drama keyframes · ${count}/${total}` : "Generating drama keyframes";
       }
       return "Standing by";
     }
-    if (person.dept === "research") return stage === 0 && running ? "Finding topics" : "Standing by";
-    if (person.dept === "script") return stage === 1 && running ? "Writing narrative" : "Standing by";
-    if (person.dept === "director") return stage === 2 && running ? "Planning shots" : "Standing by";
-    if (person.dept === "image") return stage === 3 && running ? "Generating scene images" : "Standing by";
+    if (person.dept === "research") return stage === 0 && running ? "Developing story" : "Standing by";
+    if (person.dept === "script") return stage === 1 && running ? "Writing screenplay" : "Standing by";
+    if (person.dept === "director") return stage === 2 && running ? "Blocking shots" : "Standing by";
+    if (person.dept === "image") return stage === 3 && running ? "Generating character keyframes" : "Standing by";
     if (person.dept === "video") return stage === 4 && running ? "Animating scenes" : "Standing by";
-    if (person.dept === "tts") return stage === 5 && running ? "Generating voice-over" : "Standing by";
+    if (person.dept === "tts") return stage === 5 && running ? "Generating character dialogue" : "Standing by";
     return "Standing by";
   };
 
@@ -459,7 +459,7 @@ export default function Page() {
         })}
         <Link className="hire" href="/projects">+ Create Project</Link>
         <div className="card"><div className="mini">Active project</div><div className="projectName">{activeProject?.title ?? "No active project"}</div><div className="muted">{activeProject ? `${activeProject.type} · ${activeProject.totalScenes} scenes` : "Create a project to start production."}</div><div className="prog"><i style={{width:`${pct}%`}}/></div><div className="projectFoot"><span>Scene {scene}/{totalScenes}</span><b>{pct}%</b></div></div>
-        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "AI PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. OmniRoute · Free Provider Router handles research, scripts, and direction; Gemi uses Cloudflare Workers AI for scene images."}</div></div>
+        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "AI PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. OmniRoute handles story development, screenplay, and direction; Gemi generates cinematic character keyframes for the drama."}</div></div>
       </aside>
 
       <section className="world">
@@ -485,7 +485,7 @@ export default function Page() {
         </div>
 
         <div className="card"><div className="title"><Sparkles size={14}/> OmniRoute AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>OmniRoute handles Research → Script → Director. Gemi then turns Dira&apos;s scene prompts into real 16:9 images with Cloudflare Workers AI.</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>OmniRoute handles Story → Screenplay → Director. Gemi then turns the actor blocking into 16:9 cinematic drama keyframes.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
