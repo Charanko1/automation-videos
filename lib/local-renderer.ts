@@ -22,7 +22,39 @@ function safeName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "ai-office";
 }
 
-function chunkText(text: string, maxChars = 220) {
+function cleanNarrationText(text: string) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const output: string[] = [];
+
+  for (const rawLine of lines) {
+    let line = rawLine.trim();
+    if (!line) continue;
+
+    line = line.replace(/^\s*\`\`\`(?:[a-z]+)?\s*$/i, "");
+    if (!line) continue;
+
+    // Remove Markdown headings and common production/editorial labels.
+    if (/^#{1,6}\s+/.test(line)) continue;
+
+    const labelMatch = line.match(/^\s*(HOOK|INTRO|OUTRO|TRANSISI|TRANSITION|TAKEAWAY|NARASI|VOICE[- ]?OVER|VISUAL|SCENE|SHOT|B-?ROLL)\s*[:\-]\s*(.*)$/i);
+    if (labelMatch) {
+      line = labelMatch[2].trim();
+    }
+
+    // Remove stage directions and verification markers from spoken narration.
+    line = line.replace(/^\s*\[[^\]]{1,120}\]\s*/g, "");
+    line = line.replace(/\[(?:VERIFY|verified|fact-check)\]/gi, "");
+
+    // Strip list formatting; the prose itself can still be spoken.
+    line = line.replace(/^\s*[-*•]\s+/, "").trim();
+
+    if (line) output.push(line);
+  }
+
+  return output.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function chunkText(text: string, maxChars = 180) {
   const normalized = text.replace(/\r/g, "").replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
   if (!normalized) return [];
   const sentences = normalized.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [normalized];
@@ -100,6 +132,7 @@ export async function renderLocalVideo(input: {
   await fs.mkdir(outDir, { recursive: true });
 
   const scriptPath = path.join(outDir, "script.txt");
+  const narrationPath = path.join(outDir, "narration-clean.txt");
   const directorPath = path.join(outDir, "director-scene-plan.txt");
   const tempDir = path.join(process.cwd(), ".ai-office-render-temp");
   await fs.mkdir(tempDir, { recursive: true });
@@ -110,7 +143,11 @@ export async function renderLocalVideo(input: {
   const thumbnailPath = path.join(outDir, "thumbnail.jpg");
   const manifestPath = path.join(outDir, "manifest.json");
 
+  const narrationText = cleanNarrationText(input.script);
+  if (!narrationText) throw new Error("No spoken narration could be extracted from the script.");
+
   await fs.writeFile(scriptPath, input.script, "utf8");
+  await fs.writeFile(narrationPath, narrationText, "utf8");
   await fs.writeFile(directorPath, input.director, "utf8");
 
   const ps = [
@@ -119,7 +156,7 @@ export async function renderLocalVideo(input: {
     "$synth.Rate = 0",
     "$synth.Volume = 100",
     "$synth.SetOutputToWaveFile('" + escapePowerShellSingle(audioPath) + "')",
-    "$text = Get-Content -Raw -LiteralPath '" + escapePowerShellSingle(scriptPath) + "'",
+    "$text = Get-Content -Raw -LiteralPath '" + escapePowerShellSingle(narrationPath) + "'",
     "$synth.Speak($text)",
     "$synth.Dispose()",
   ].join("\r\n");
@@ -130,7 +167,7 @@ export async function renderLocalVideo(input: {
   const probe = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audioPath]);
   const duration = Math.max(1, Number.parseFloat(probe.stdout.trim()) || 1);
 
-  const chunks = chunkText(input.script);
+  const chunks = chunkText(narrationText);
   const weights = chunks.map((chunk) => Math.max(1, chunk.length));
   const weightTotal = Math.max(1, weights.reduce((a, b) => a + b, 0));
   let cursor = 0;
@@ -220,7 +257,7 @@ export async function renderLocalVideo(input: {
   }
 
   const videoFilter = visualSourcePath
-    ? "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=54'"
+    ? "subtitles='" + subtitleFile + "':force_style='FontName=Arial,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=44,WrapStyle=2'"
     : "drawbox=x=0:y=0:w=iw:h=ih:color=0x0b1020@1:t=fill," +
       "drawbox=x=(iw-520)/2+sin(t*0.7)*220:y=90:w=520:h=8:color=0x6f8cff@0.9:t=fill," +
       "drawbox=x=(iw-220)/2+cos(t*0.45)*360:y=ih-140:w=220:h=12:color=0x4fe0aa@0.85:t=fill," +
@@ -261,6 +298,7 @@ export async function renderLocalVideo(input: {
       script: "script.txt",
       director: "director-scene-plan.txt",
       narration: "narration.wav",
+      narrationClean: "narration-clean.txt",
       subtitles: "subtitles.srt",
       video: "final.mp4",
       thumbnail: "thumbnail.jpg",
