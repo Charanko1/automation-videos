@@ -6,7 +6,7 @@ export type ParsedDramaPlan = {
 };
 
 function stripThinkingText(text: string) {
-  return text.replace(/<think>[\\s\\S]*?<\\/think>/gi, "").trim();
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 function extractMarkedJson(text: string, startMarker: string, endMarker: string) {
@@ -20,8 +20,8 @@ function extractMarkedJson(text: string, startMarker: string, endMarker: string)
   const raw = text
     .slice(contentStart, end)
     .trim()
-    .replace(/^\`\`\`json\s*/i, "")
-    .replace(/\s*\`\`\`$/i, "")
+    .replace(/^```json\s*/i, "")
+    .replace(/\s*```$/i, "")
     .trim();
 
   try {
@@ -135,23 +135,11 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function looksLikeCharacterEntry(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const item = value as Record<string, unknown>;
-  return Boolean(
-    asString(item.character_id ?? item.characterId) &&
-      asString(item.name),
-  );
-}
-
 function serializeCharacterBible(value: unknown) {
   if (typeof value === "string") return value.trim();
 
-  if (Array.isArray(value)) {
-    if (value.length === 0 || !value.every(looksLikeCharacterEntry)) return "";
-  } else if (!looksLikeCharacterEntry(value)) {
-    return "";
-  }
+  if (!value || typeof value !== "object") return "";
+  if (Array.isArray(value) && value.length === 0) return "";
 
   try {
     return JSON.stringify(value, null, 2);
