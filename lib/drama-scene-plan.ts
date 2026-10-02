@@ -69,12 +69,92 @@ function extractFirstJsonObject(text: string) {
   return null;
 }
 
+function extractBalancedJsonValues(text: string) {
+  const source = stripThinkingText(text);
+  const values: unknown[] = [];
+
+  for (let start = source.indexOf("{"); start >= 0 && start < source.length; ) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+
+    for (let index = start; index < source.length; index += 1) {
+      const char = source[index];
+
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\\\") escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === "{") depth += 1;
+      if (char === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          end = index;
+          break;
+        }
+      }
+    }
+
+    if (end < 0) break;
+
+    try {
+      values.push(JSON.parse(source.slice(start, end + 1)));
+    } catch {
+      // Keep scanning; the model may have emitted commentary or malformed JSON
+      // before the actual director payload.
+    }
+
+    start = source.indexOf("{", end + 1);
+  }
+
+  return values;
+}
+
 function extractRawPlan(text: string) {
-  return (
+  const marked =
     extractMarkedJson(text, "DIRECTOR_JSON_START", "DIRECTOR_JSON_END") ??
-    extractMarkedJson(text, "SCENES_JSON_START", "SCENES_JSON_END") ??
-    extractFirstJsonObject(text)
-  );
+    extractMarkedJson(text, "SCENES_JSON_START", "SCENES_JSON_END");
+
+  if (marked) return marked;
+
+  const candidates = extractBalancedJsonValues(text);
+  const looksLikeDirectorPlan = (value: unknown) => {
+    if (!value || typeof value !== "object") return false;
+    const item = value as Record<string, unknown>;
+    const hasScenes = Array.isArray(item.scenes) || Array.isArray(item.scene);
+    const hasCharacters =
+      item.character_bible !== undefined ||
+      item.characterBible !== undefined ||
+      item.characters !== undefined;
+    return hasScenes || hasCharacters;
+  };
+
+  const directCandidate = candidates.find(looksLikeDirectorPlan);
+  if (directCandidate) return directCandidate;
+
+  const source = stripThinkingText(text)
+    .replace(/^\\`\\`\\`json\\s*/i, "")
+    .replace(/\\s*\\`\\`\\`$/i, "")
+    .trim();
+
+  try {
+    const parsed = JSON.parse(source) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.find(looksLikeDirectorPlan) ?? null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 function asString(value: unknown) {
@@ -129,7 +209,15 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
   }
 
   const item = parsed as Record<string, unknown>;
-  const rawCharacterBible = item.character_bible ?? item.characterBible;
+  const rawCharacterBible =
+    item.character_bible ??
+    item.characterBible ??
+    item.characters ??
+    (item.director_plan && typeof item.director_plan === "object"
+      ? (item.director_plan as Record<string, unknown>).character_bible ??
+        (item.director_plan as Record<string, unknown>).characterBible ??
+        (item.director_plan as Record<string, unknown>).characters
+      : undefined);
   const characterBible =
     typeof rawCharacterBible === "string"
       ? rawCharacterBible.trim()
