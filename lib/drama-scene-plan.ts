@@ -135,16 +135,29 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function looksLikeCharacterEntry(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return Boolean(
+    asString(item.character_id ?? item.characterId) &&
+      asString(item.name),
+  );
+}
+
 function serializeCharacterBible(value: unknown) {
   if (typeof value === "string") return value.trim();
-  if (value && typeof value === "object") {
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return "";
-    }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0 || !value.every(looksLikeCharacterEntry)) return "";
+  } else if (!looksLikeCharacterEntry(value)) {
+    return "";
   }
-  return "";
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return "";
+  }
 }
 
 function parseDialogue(value: unknown): AIProductionDialogue[] {
