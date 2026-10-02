@@ -129,7 +129,13 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
   }
 
   const item = parsed as Record<string, unknown>;
-  const characterBible = asString(item.character_bible);
+  const rawCharacterBible = item.character_bible ?? item.characterBible;
+  const characterBible =
+    typeof rawCharacterBible === "string"
+      ? rawCharacterBible.trim()
+      : rawCharacterBible && typeof rawCharacterBible === "object"
+        ? JSON.stringify(rawCharacterBible, null, 2)
+        : "";
   const rawScenes = Array.isArray(item.scenes)
     ? item.scenes
     : Array.isArray(item.scene)
