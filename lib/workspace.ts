@@ -45,6 +45,7 @@ export type AIImageAsset = {
 
 export type AIProduction = {
   phase: AIPipelinePhase;
+  pipelineVersion?: "drama-v2";
   research?: string;
   script?: string;
   director?: string;
