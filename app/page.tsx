@@ -167,12 +167,13 @@ export default function Page() {
     setToast("Checking existing drama stages before spending another AI call…");
 
     const requestedSceneCount = Math.min(12, Math.max(6, activeProject.totalScenes));
-    let researchText = activeProject.ai?.research?.trim() ?? "";
-    let scriptText = activeProject.ai?.script?.trim() ?? "";
-    let directorText = activeProject.ai?.director?.trim() ?? "";
-    let characterBible = activeProject.ai?.characterBible?.trim() ?? "";
-    let directorScenes = Array.isArray(activeProject.ai?.scenePlans) ? activeProject.ai.scenePlans : [];
-    let generatedAssets: NonNullable<AIProduction["imageAssets"]> = Array.isArray(activeProject.ai?.imageAssets)
+    const dramaArtifacts = activeProject.ai?.pipelineVersion === "drama-v2";
+    let researchText = dramaArtifacts ? activeProject.ai?.research?.trim() ?? "" : "";
+    let scriptText = dramaArtifacts ? activeProject.ai?.script?.trim() ?? "" : "";
+    let directorText = dramaArtifacts ? activeProject.ai?.director?.trim() ?? "" : "";
+    let characterBible = dramaArtifacts ? activeProject.ai?.characterBible?.trim() ?? "" : "";
+    let directorScenes = dramaArtifacts && Array.isArray(activeProject.ai?.scenePlans) ? activeProject.ai.scenePlans : [];
+    let generatedAssets: NonNullable<AIProduction["imageAssets"]> = dramaArtifacts && Array.isArray(activeProject.ai?.imageAssets)
       ? [...activeProject.ai.imageAssets]
       : [];
 
@@ -203,6 +204,7 @@ export default function Page() {
 
         updateActiveAI({
           phase: "SCRIPT",
+          pipelineVersion: "drama-v2",
           research: researchText,
           model: data.model,
           error: undefined,
@@ -236,6 +238,7 @@ export default function Page() {
 
         updateActiveAI({
           phase: "DIRECTOR",
+          pipelineVersion: "drama-v2",
           script: scriptText,
           model: data.model ?? activeProject.ai?.model,
           error: undefined,
@@ -320,6 +323,7 @@ export default function Page() {
 
       updateActiveAI({
         phase: "IMAGES",
+        pipelineVersion: "drama-v2",
         director: directorText,
         characterBible,
         scenePlans: directorScenes,
@@ -381,6 +385,7 @@ export default function Page() {
 
       updateActiveAI({
         phase: "COMPLETED",
+        pipelineVersion: "drama-v2",
         research: researchText,
         script: scriptText,
         director: directorText,
