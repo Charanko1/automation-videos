@@ -13,8 +13,8 @@ const people = [
   { id: "wri", name: "Wri", role: "Screenwriter", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "Image Artist", provider: "Cloudflare Workers AI", dept: "image", color: "#68dcae" },
-  { id: "gpt", name: "GPT", role: "Video Artist", provider: "ChatGPT Go", dept: "video", color: "#72c7ff" },
-  { id: "vox", name: "Vox", role: "Narrator", provider: "ChatGPT Go", dept: "tts", color: "#ff8b94" },
+  { id: "gpt", name: "GPT", role: "Video Artist", provider: "Local FFmpeg · I2V-ready", dept: "video", color: "#72c7ff" },
+  { id: "vox", name: "Vox", role: "Dialogue Voice", provider: "Windows Speech Synthesis", dept: "tts", color: "#ff8b94" },
 ];
 
 const pipe = [
@@ -320,7 +320,7 @@ export default function Page() {
   const renderFinalVideo = async () => {
     if (!activeProject?.ai?.script || !activeProject.ai.director || rendering) return;
     setRendering(true);
-    setToast("Local renderer: generating narration and assembling the video…");
+    setToast("Local renderer: generating character dialogue and assembling the drama…");
     updateActiveAI({ render: { status: "RENDERING", error: undefined } });
 
     try {
@@ -439,7 +439,7 @@ export default function Page() {
     if (person.dept === "script") return stage === 1 && running ? "Writing screenplay" : "Standing by";
     if (person.dept === "director") return stage === 2 && running ? "Blocking shots" : "Standing by";
     if (person.dept === "image") return stage === 3 && running ? "Generating character keyframes" : "Standing by";
-    if (person.dept === "video") return stage === 4 && running ? "Animating scenes" : "Standing by";
+    if (person.dept === "video") return stage === 4 && running ? "Preparing scene motion" : "Standing by";
     if (person.dept === "tts") return stage === 5 && running ? "Generating character dialogue" : "Standing by";
     return "Standing by";
   };
@@ -542,9 +542,9 @@ export default function Page() {
               <a className="ctrl compact" href={activeProject.ai.render.thumbnailUrl} target="_blank" rel="noreferrer">Open thumbnail</a>
             )}
           </div>
-          {activeProject.ai.render?.status === "RENDERING" && <div className="notice" style={{marginTop:10}}>Rendering locally with Windows Speech Synthesis + FFmpeg. This creates a real MP4 with narration and subtitles.</div>}
+          {activeProject.ai.render?.status === "RENDERING" && <div className="notice" style={{marginTop:10}}>Rendering locally with Windows Speech Synthesis + FFmpeg. Dialogue is generated per character and subtitles contain spoken lines only.</div>}
           {activeProject.ai.render?.status === "FAILED" && <div className="notice" style={{marginTop:10}}>FAILED · {activeProject.ai.render.error}</div>}
-          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · MP4 created locally with narration, subtitles, and the generated Gemi scene images when available.</div>}
+          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · MP4 created locally with character dialogue, clean subtitles, camera-aware motion, and generated Gemi scene images.</div>}
         </div>}
 
         <div className="card"><div className="title"><Sparkles size={14}/> Office Controls</div>
