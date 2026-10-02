@@ -19,6 +19,10 @@ type DirectorScene = {
   imagePriority?: string;
 };
 
+function stripThinkingText(text: string) {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
+
 function extractMarkedJson(text: string, startMarker: string, endMarker: string) {
   const start = text.indexOf(startMarker);
   if (start < 0) return null;
@@ -34,42 +38,70 @@ function extractMarkedJson(text: string, startMarker: string, endMarker: string)
   }
 }
 
-function parseDirectorScenes(text: string): DirectorScene[] {
-  const parsed = extractMarkedJson(text, "SCENES_JSON_START", "SCENES_JSON_END");
-  const rawScenes =
-    parsed &&
-    typeof parsed === "object" &&
-    parsed !== null &&
-    Array.isArray((parsed as { scenes?: unknown }).scenes)
-      ? (parsed as { scenes: unknown[] }).scenes
-      : [];
+function extractFirstJsonObject(text: string) {
+  const source = stripThinkingText(text).replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+  const start = source.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === """) inString = false;
+      continue;
+    }
+    if (char === """) { inString = true; continue; }
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        try { return JSON.parse(source.slice(start, index + 1)) as unknown; }
+        catch { return null; }
+      }
+    }
+  }
+  return null;
+}
 
-  return rawScenes
-    .map((scene) => {
-      if (!scene || typeof scene !== "object") return null;
-      const item = scene as Record<string, unknown>;
-      const sceneId = typeof item.scene_id === "string" ? item.scene_id.trim() : "";
-      const visualPrompt = typeof item.visual_prompt === "string" ? item.visual_prompt.trim() : "";
-      if (!sceneId || !visualPrompt) return null;
-      return {
-        sceneId,
-        purpose: typeof item.purpose === "string" ? item.purpose : undefined,
-        narrationExcerpt: typeof item.narration_excerpt === "string" ? item.narration_excerpt : undefined,
-        visualPrompt,
-        cameraAndComposition: typeof item.camera_and_composition === "string" ? item.camera_and_composition : undefined,
-        lightingAndColor: typeof item.lighting_and_color === "string" ? item.lighting_and_color : undefined,
-        environment: typeof item.environment === "string" ? item.environment : undefined,
-        characterActions: typeof item.character_actions === "string" ? item.character_actions : undefined,
-        onScreenText: typeof item.on_screen_text === "string" ? item.on_screen_text : undefined,
-        assetType: typeof item.asset_type === "string" ? item.asset_type : undefined,
-        referenceCharacterIds: Array.isArray(item.reference_character_ids)
-          ? item.reference_character_ids.filter((value): value is string => typeof value === "string")
-          : undefined,
-        aspectRatio: typeof item.aspect_ratio === "string" ? item.aspect_ratio : "16:9",
-        imagePriority: typeof item.image_priority === "string" ? item.image_priority : undefined,
-      } satisfies DirectorScene;
-    })
-    .filter((scene): scene is DirectorScene => Boolean(scene));
+function extractDirectorPayload(text: string) {
+  const parsed = extractMarkedJson(text, "DIRECTOR_JSON_START", "DIRECTOR_JSON_END")
+    ?? extractMarkedJson(text, "SCENES_JSON_START", "SCENES_JSON_END")
+    ?? extractFirstJsonObject(text);
+  if (!parsed || typeof parsed !== "object" || parsed === null) return { characterBible: "", rawScenes: [] as unknown[] };
+  const item = parsed as Record<string, unknown>;
+  const rawScenes = Array.isArray(item.scenes) ? item.scenes : Array.isArray(item.scene) ? item.scene : [];
+  const characterBible = typeof item.character_bible === "string" ? item.character_bible.trim() : "";
+  return { characterBible, rawScenes };
+}
+
+function parseDirectorScenes(text: string, characterBible = ""): DirectorScene[] {
+  const { rawScenes } = extractDirectorPayload(text);
+  return rawScenes.map((scene) => {
+    if (!scene || typeof scene !== "object") return null;
+    const item = scene as Record<string, unknown>;
+    const sceneId = typeof item.scene_id === "string" ? item.scene_id.trim() : "";
+    const prompt = typeof item.visual_prompt_core === "string" ? item.visual_prompt_core.trim() : typeof item.visual_prompt === "string" ? item.visual_prompt.trim() : "";
+    if (!sceneId || !prompt) return null;
+    const visualPrompt = characterBible ? [prompt, "", "IMMUTABLE CHARACTER BIBLE:", characterBible].join("\n") : prompt;
+    return {
+      sceneId,
+      purpose: typeof item.purpose === "string" ? item.purpose : undefined,
+      narrationExcerpt: typeof item.narration_excerpt === "string" ? item.narration_excerpt : undefined,
+      visualPrompt,
+      cameraAndComposition: typeof item.camera_and_composition === "string" ? item.camera_and_composition : undefined,
+      lightingAndColor: typeof item.lighting_and_color === "string" ? item.lighting_and_color : undefined,
+      environment: typeof item.environment === "string" ? item.environment : undefined,
+      characterActions: typeof item.character_actions === "string" ? item.character_actions : undefined,
+      onScreenText: typeof item.on_screen_text === "string" ? item.on_screen_text : undefined,
+      assetType: typeof item.asset_type === "string" ? item.asset_type : undefined,
+      referenceCharacterIds: Array.isArray(item.reference_character_ids) ? item.reference_character_ids.filter((value): value is string => typeof value === "string") : undefined,
+      aspectRatio: "16:9",
+      imagePriority: typeof item.image_priority === "string" ? item.image_priority : undefined,
+    } satisfies DirectorScene;
+  }).filter((scene): scene is DirectorScene => Boolean(scene));
 }
 
 export async function POST(request: Request) {
@@ -147,35 +179,16 @@ export async function POST(request: Request) {
         `Format: ${format}`,
         "",
         "Turn the script into a production-ready visual plan for Gemi, the Image Artist.",
-        "First create an IMMUTABLE CHARACTER BIBLE for every recurring human/animal/fictional character.",
-        "The Character Bible must use fixed fields: character_id, name, apparent_age, gender_presentation, ethnicity_or_species, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, color_palette, art_style, and hard_constraints.",
-        "Once created, NEVER change the Character Bible during this project unless the story explicitly introduces a permanent character redesign.",
-        "Then output the Character Bible exactly between CHARACTER_BIBLE_START and CHARACTER_BIBLE_END.",
-        "After the Character Bible, return 8-12 numbered scenes.",
-        "For every scene provide:",
-        "- scene_id",
-        "- purpose",
-        "- narration_excerpt",
-        "- visual_prompt",
-        "- camera_and_composition",
-        "- lighting_and_color",
-        "- environment",
-        "- character_actions",
-        "- on_screen_text",
-        "- asset_type",
-        "- reference_character_ids",
-        "- aspect_ratio (always 16:9)",
-        "- image_priority (hero, standard, transition)",
-        "CRITICAL: Every visual_prompt MUST include the complete relevant Character Bible text verbatim for each referenced recurring character.",
-        "CRITICAL: Never use vague phrases such as 'same character as before' or 'as previously described'. Repeat the fixed character specification in every scene.",
-        "Design prompts for Gemi using Cloudflare Workers AI image generation. Do not request image generation from ChatGPT.",
-        "If a reference image is available, instruct Gemi to use it as a subject reference while preserving the Character Bible constraints.",
-        "Keep visual instructions concrete, cinematic, and production-ready.",
-        "Do not claim that any image, audio, or video asset has already been generated.",
-        "After the numbered scene plan, output the exact same scene data as machine-readable JSON between SCENES_JSON_START and SCENES_JSON_END.",
-        "The JSON must be an object with a single top-level key called scenes containing the scene array.",
-        "Use snake_case keys matching the scene fields: scene_id, purpose, narration_excerpt, visual_prompt, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
-        "Do not wrap the JSON in markdown fences. Keep every visual_prompt complete and production-ready.",
+        "STRICT OUTPUT: return exactly ONE valid JSON object and nothing else. No markdown fences. No commentary.",
+        "Top-level keys: character_bible and scenes.",
+        "character_bible: concise but complete immutable character specification using character_id, name, apparent_age, gender_presentation, ethnicity_or_species, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, color_palette, art_style, hard_constraints.",
+        "Create 8-12 scenes.",
+        "Each scene keys: scene_id, purpose, narration_excerpt, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
+        "aspect_ratio must be exactly 16:9.",
+        "visual_prompt_core is the cinematic prompt for Cloudflare Workers AI. Do not repeat the Character Bible inside it; the server appends the immutable Character Bible.",
+        "Never use phrases such as same character as before or as previously described.",
+        "Do not claim any image, audio, or video asset was already generated.",
+        "Keep the response compact enough to avoid truncation and make it valid for JSON.parse.",
         "",
         "SCRIPT:",
         script,
@@ -184,23 +197,17 @@ export async function POST(request: Request) {
 
     const result = await generateWithOmniRoute(prompt);
 
-    let characterBible = "";
-    if (stage === "director") {
-      const startMarker = result.text.indexOf("CHARACTER_BIBLE_START");
-      const contentStart = startMarker >= 0 ? startMarker + "CHARACTER_BIBLE_START".length : -1;
-      const endMarker = contentStart >= 0 ? result.text.indexOf("CHARACTER_BIBLE_END", contentStart) : -1;
-      if (contentStart >= 0 && endMarker >= 0) {
-        characterBible = result.text.slice(contentStart, endMarker).trim();
-      }
-    }
-
-    const scenes = stage === "director" ? parseDirectorScenes(result.text) : [];
+    const directorPayload = stage === "director"
+      ? extractDirectorPayload(result.text)
+      : { characterBible: "", rawScenes: [] as unknown[] };
+    const characterBible = directorPayload.characterBible;
+    const scenes = stage === "director" ? parseDirectorScenes(result.text, characterBible) : [];
 
     if (stage === "director" && scenes.length === 0) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Director completed, but no structured scene JSON was returned. Run the Director stage again.",
+          error: "Director returned an invalid structured plan. Expected valid JSON with character_bible and 8-12 scenes.",
         },
         { status: 502 },
       );
