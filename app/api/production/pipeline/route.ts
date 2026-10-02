@@ -7,6 +7,9 @@ type DirectorScene = {
   sceneId: string;
   purpose?: string;
   narrationExcerpt?: string;
+  dialogue?: Array<{ speaker: string; characterId?: string; line: string; emotion?: string }>;
+  charactersPresent?: string[];
+  emotionalBeat?: string;
   visualPrompt: string;
   cameraAndComposition?: string;
   lightingAndColor?: string;
@@ -90,6 +93,21 @@ function parseDirectorScenes(text: string, characterBible = ""): DirectorScene[]
       sceneId,
       purpose: typeof item.purpose === "string" ? item.purpose : undefined,
       narrationExcerpt: typeof item.narration_excerpt === "string" ? item.narration_excerpt : undefined,
+      dialogue: Array.isArray(item.dialogue)
+        ? item.dialogue
+            .filter((value): value is Record<string, unknown> => Boolean(value && typeof value === "object"))
+            .map((value) => ({
+              speaker: typeof value.speaker === "string" ? value.speaker : "",
+              characterId: typeof value.character_id === "string" ? value.character_id : undefined,
+              line: typeof value.line === "string" ? value.line : "",
+              emotion: typeof value.emotion === "string" ? value.emotion : undefined,
+            }))
+            .filter((value) => Boolean(value.speaker && value.line))
+        : undefined,
+      charactersPresent: Array.isArray(item.characters_present)
+        ? item.characters_present.filter((value): value is string => typeof value === "string")
+        : undefined,
+      emotionalBeat: typeof item.emotional_beat === "string" ? item.emotional_beat : undefined,
       visualPrompt,
       cameraAndComposition: typeof item.camera_and_composition === "string" ? item.camera_and_composition : undefined,
       lightingAndColor: typeof item.lighting_and_color === "string" ? item.lighting_and_color : undefined,
@@ -137,64 +155,74 @@ export async function POST(request: Request) {
 
     if (stage === "research") {
       prompt = [
-        "You are Rhea, the Researcher in an AI YouTube production office.",
+        "You are Rhea, the Story Researcher in an AI drama production office.",
         `Project title: ${title}`,
-        `Format: ${format}`,
+        `Genre: ${format}`,
         "",
-        "Create a factual research brief for this YouTube project.",
+        "Develop the story foundation for a character-driven drama. This is fictional storytelling, not a documentary or explainer.",
         "Return:",
-        "1. Concise topic thesis.",
-        "2. Five key facts or claims to cover.",
-        "3. Important context and definitions.",
-        "4. Three claims that must be fact-checked before publishing.",
-        "5. Suggested audience angle.",
-        "Keep it structured and practical. Do not invent citations or claim to browse the web.",
+        "1. One-sentence premise.",
+        "2. Setting and world rules.",
+        "3. Main cast: 3-6 recurring characters with character_id, role, personality, goal, fear, secret, and relationship to the protagonist.",
+        "4. Central conflict and stakes.",
+        "5. Beginning, midpoint escalation, climax, and ending.",
+        "6. Emotional arc for the protagonist.",
+        "Keep the story coherent, visual, and suitable for short-form cinematic scenes. Do not write factual claims unless the story explicitly requires them.",
       ].join("\n");
     }
 
     if (stage === "script") {
       prompt = [
-        "You are Wri, the Scriptwriter in an AI YouTube production office.",
+        "You are Wri, the Screenwriter in an AI drama production office.",
         `Project title: ${title}`,
-        `Format: ${format}`,
+        `Genre: ${format}`,
         "",
-        "Use the research brief below to write a YouTube script.",
+        "Use the story foundation below to write a cinematic screenplay, not a documentary narration.",
+        "The audience should experience the story through characters, actions, conflict, and dialogue.",
         "Requirements:",
-        "- Strong 15-30 second hook.",
-        "- Clear spoken narration with short paragraphs.",
-        "- Natural transitions.",
-        "- No fabricated sources, quotes, statistics, or events.",
-        "- Mark statements needing external fact-checking as [VERIFY] inside the prose, but do not add production labels.",
-        "- End with a concise takeaway and call to action.",
-        "- RETURN ONLY THE SPOKEN NARRATION IN PLAIN TEXT.",
-        "- Do NOT use Markdown headings, #, bullets, section labels, HOOK:, INTRO:, TRANSISI:, TRANSITION:, TAKEAWAY:, SCENE:, VISUAL:, stage directions, sound cues, or editorial notes.",
+        "- Create 8-12 compact scenes with clear locations and time-of-day.",
+        "- Every scene must have characters doing something visible.",
+        "- Use natural dialogue between named recurring characters; avoid narrator exposition unless absolutely necessary.",
+        "- Give each important character a distinct voice and personality.",
+        "- Include emotional escalation, reversals, and cause-and-effect between scenes.",
+        "- Use brief stage directions only when needed for visible action or performance.",
+        "- No Markdown bullets or editorial commentary.",
+        "- Do not write headings such as HOOK, INTRO, TAKEAWAY, VISUAL, VOICE-OVER, or B-ROLL.",
+        "- End with a satisfying dramatic beat rather than a YouTube-style factual takeaway.",
+        "- RETURN ONLY THE SCREENPLAY.",
         "",
-        "RESEARCH BRIEF:",
+        "STORY FOUNDATION:",
         research,
       ].join("\n");
     }
 
     if (stage === "director") {
       prompt = [
-        "You are Dira, the Director in an AI YouTube production office.",
+        "You are Dira, the Director of a character-driven animated drama studio.",
         `Project title: ${title}`,
-        `Format: ${format}`,
+        `Genre: ${format}`,
         "",
-        "Turn the script into a production-ready visual plan for Gemi, the Image Artist.",
+        "Turn the screenplay into a production-ready shot plan for Gemi, the Image Artist.",
+        "This is DRAMA, not a documentary. Characters are actors inside a continuous story world.",
         "STRICT OUTPUT: return exactly ONE valid JSON object and nothing else. No markdown fences. No commentary.",
         "Top-level keys: character_bible and scenes.",
-        "character_bible: concise but complete immutable character specification using character_id, name, apparent_age, gender_presentation, ethnicity_or_species, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, color_palette, art_style, hard_constraints.",
-        "Create 8-12 scenes.",
-        "Each scene keys: scene_id, purpose, narration_excerpt, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
+        "character_bible: define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
+        "Create exactly 8-12 scenes.",
+        "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
+        "dialogue is an array of {speaker, character_id, line, emotion}; preserve the screenplay dialogue exactly when possible.",
+        "characters_present is an array of character_id values present in the shot.",
+        "emotional_beat describes the scene emotion and how it changes.",
+        "reference_character_ids must contain every recurring character visible in the image.",
         "aspect_ratio must be exactly 16:9.",
-        "visual_prompt_core is the cinematic prompt for the image model. Do not repeat the Character Bible inside it; the server appends the immutable Character Bible.",
-        "GLOBAL VISUAL STYLE LOCK for every scene: cute stylized 3D animated film look, chibi/toy-like characters, soft rounded shapes, expressive friendly faces, polished 3D materials, cinematic depth of field, warm studio lighting, soft volumetric light, playful family-friendly adventure mood, cohesive color palette, consistent character proportions. Never use comic-book panels, 2D illustration, anime, manga, graphic novel, flat vector art, thick ink outlines, photorealism, horror, gritty realism, or text-heavy artwork.",
-        "Every visual_prompt_core must describe an actual 3D animated scene with clear character action, pose, environment, camera angle, and lighting. Prefer medium/wide cinematic shots that make the subject feel alive and readable.",
-        "Never use phrases such as same character as before or as previously described.",
+        "visual_prompt_core must describe a single cinematic 3D animated film frame that shows the acting and blocking of the characters. Never turn the scene into an illustration of a narrated topic.",
+        "GLOBAL VISUAL STYLE LOCK: cute polished 3D animated film, chibi/toy-like but cinematic proportions, soft rounded geometry, expressive faces, high-quality 3D materials, subtle depth of field, warm studio lighting, soft volumetric light, family-friendly dramatic storytelling, consistent character design.",
+        "NO STYLE DRIFT: never use comic-book panels, 2D illustration, anime, manga, graphic novel, flat vector art, thick ink outlines, photorealistic photography, gritty realism, random costume changes, random extra characters, text-heavy artwork, or infographic composition.",
+        "Prioritize two-shots, over-the-shoulder shots, close-ups, reaction shots, and simple establishing shots. Make the characters' expressions, eye-lines, poses, and relationships obvious.",
+        "Track continuity: location, time of day, clothing, props, injuries, and emotional state must carry logically from scene to scene.",
         "Do not claim any image, audio, or video asset was already generated.",
-        "Keep the response compact enough to avoid truncation and make it valid for JSON.parse.",
+        "Keep the response compact enough to remain valid JSON.",
         "",
-        "SCRIPT:",
+        "SCREENPLAY:",
         script,
       ].join("\n");
     }
