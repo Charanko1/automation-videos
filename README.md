@@ -31,6 +31,35 @@ npm run typecheck
 npm run build
 ```
 
+
+## Local AI text provider — OmniRoute
+
+Rhea, Wri, and Dira use the local OmniRoute OpenAI-compatible gateway. OmniRoute itself is free and open-source; the actual quota/cost comes from the upstream provider you connect. OmniRoute documents free providers such as Kiro AI and OpenCode Free, but each provider has its own availability, quotas, and terms.
+
+Install OmniRoute separately on the machine running AI Office:
+
+```bash
+npm install -g omniroute
+omniroute
+```
+
+The dashboard/API runs at `http://127.0.0.1:20128` with the OpenAI-compatible base URL `http://127.0.0.1:20128/v1`. Connect at least one documented free provider from the OmniRoute dashboard, then create/copy the OmniRoute API key from **Dashboard → Endpoints**. Use model `auto` so OmniRoute can route across connected providers.
+
+Add this to `.env.local`:
+
+```env
+OMNIROUTE_BASE_URL=http://127.0.0.1:20128/v1
+OMNIROUTE_API_KEY=your_omniroute_key
+OMNIROUTE_MODEL=auto
+```
+
+Then restart AI Office:
+
+```bash
+npm run dev
+```
+
+AI Office calls OmniRoute only from the server-side production pipeline, so the OmniRoute API key is never exposed to the browser.
 ## Architecture
 
 - Next.js App Router
