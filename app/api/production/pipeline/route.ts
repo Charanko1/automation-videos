@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithOpenRouter } from "../../../../lib/openrouter";
+import { generateWithOmniRoute } from "../../../../lib/omniroute";
 
 type Stage = "research" | "script" | "director";
 
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
       ].join("\n");
     }
 
-    const result = await generateWithOpenRouter(prompt);
+    const result = await generateWithOmniRoute(prompt);
 
     let characterBible = "";
     if (stage === "director") {
@@ -209,7 +209,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       stage,
-      provider: "OpenRouter",
+      provider: "OmniRoute",
       model: result.model,
       displayName: result.displayName,
       text: result.text,
