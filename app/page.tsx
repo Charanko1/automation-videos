@@ -341,8 +341,20 @@ export default function Page() {
         const existing = generatedAssets.find((asset) => asset.sceneId === scenePlan.sceneId);
 
         if (existing?.assetUrl) {
-          setToast(`Gemi · Scene ${index + 1}/${directorScenes.length} · Reusing existing keyframe.`);
-          continue;
+          let assetStillExists = false;
+          try {
+            const assetCheck = await fetch(existing.assetUrl, { method: "HEAD", cache: "no-store" });
+            assetStillExists = assetCheck.ok;
+          } catch {
+            assetStillExists = false;
+          }
+
+          if (assetStillExists) {
+            setToast(`Gemi · Scene ${index + 1}/${directorScenes.length} · Reusing existing keyframe.`);
+            continue;
+          }
+
+          generatedAssets = generatedAssets.filter((asset) => asset.sceneId !== scenePlan.sceneId);
         }
 
         setToast(`Gemi · Scene ${index + 1}/${directorScenes.length} · Generating image…`);
