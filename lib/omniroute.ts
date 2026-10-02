@@ -21,7 +21,7 @@ function extractContent(content: OmniRouteMessage["content"]) {
 }
 
 function normalizeBaseUrl(value: string) {
-  return value.trim().replace(/\\/+$/, "");
+  return value.trim().replace(/\/+$/, "");
 }
 
 async function requestOmniRoute(path: string, init: RequestInit = {}) {
