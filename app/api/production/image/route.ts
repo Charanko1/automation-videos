@@ -30,10 +30,18 @@ export async function POST(request: Request) {
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
       "SCENE PROMPT:\n" + prompt,
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
+      "STYLE LOCK: cute polished 3D animated film frame, chibi/toy-like proportions, soft rounded geometry, expressive friendly faces, high-quality 3D materials, subtle depth of field, cinematic lighting, warm playful family-friendly mood, coherent art direction across all scenes.",
+      "CAMERA DIRECTION: stage the scene like an animated movie shot, with clear foreground/midground/background separation and visible character action.",
+      "STRICTLY AVOID: comic book, manga, anime, 2D illustration, graphic novel, flat vector artwork, thick ink outlines, sketch, watercolor, photorealistic photography, horror, gritty realism, text overlays, captions, subtitles, logos, UI panels.",
     ].filter(Boolean).join("\n\n");
 
     const omniImageModel = process.env.OMNIROUTE_IMAGE_MODEL?.trim();
     const useOmniRoute = Boolean(omniImageModel) && !referenceImageBase64;
+
+    const negativePrompt = process.env.GEMI_IMAGE_NEGATIVE_PROMPT?.trim() || [
+      "comic book", "manga", "anime", "2D illustration", "graphic novel", "flat vector art", "thick ink outlines",
+      "sketch", "watercolor", "photorealistic", "gritty realism", "horror", "text", "subtitles", "captions", "logos", "UI"
+    ].join(", ");
 
     let result: { imageBase64: string; mimeType: string; model: string };
     let provider: "OmniRoute" | "Cloudflare Workers AI";
@@ -54,6 +62,7 @@ export async function POST(request: Request) {
           height: 576,
           numSteps: 4,
           imageBase64: referenceImageBase64 || undefined,
+          negativePrompt,
         });
         provider = "Cloudflare Workers AI";
         console.warn(
