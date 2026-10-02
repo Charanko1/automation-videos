@@ -25,7 +25,7 @@ function resolvePublicAssetPath(assetUrl: string) {
   const clean = assetUrl.split("?")[0].split("#")[0];
   if (!clean.startsWith("/generated/")) return null;
 
-  const relative = clean.replace(/^\\/+/, "");
+  const relative = clean.replace(/^\/+/, "");
   const absolute = path.resolve(process.cwd(), "public", relative);
   const publicRoot = path.resolve(process.cwd(), "public") + path.sep;
 
@@ -44,45 +44,45 @@ function safeName(value: string) {
 
 function cleanDialogueLine(text: string) {
   return text
-    .replace(/\\r/g, " ")
-    .replace(/<think>[\\s\\S]*?<\\/think>/gi, " ")
-    .replace(/^\\s*[A-Z][A-Z0-9 _-]{0,30}\\s*:\\s*/i, "")
-    .replace(/^\\s*["“](.*)["”]\\s*$/s, "$1")
-    .replace(/\\s+/g, " ")
+    .replace(/\r/g, " ")
+    .replace(/<think>[\s\S]*?<\/think>/gi, " ")
+    .replace(/^\s*[A-Z][A-Z0-9 _-]{0,30}\\s*:\\s*/i, "")
+    .replace(/^\s*["“](.*)["”]\\s*$/s, "$1")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 function cleanNarrationText(text: string) {
-  const lines = text.replace(/\\r/g, "").split("\\n");
+  const lines = text.replace(/\r/g, "").split("\n");
   const output: string[] = [];
 
   for (const rawLine of lines) {
     let line = rawLine.trim();
     if (!line) continue;
 
-    if (/^\\s*#{1,6}\\s+/.test(line)) continue;
-    if (/^(INT\\.|EXT\\.|INT\\/EXT\\.|SCENE\\s*\\d+)/i.test(line)) continue;
+    if (/^\s*#{1,6}\\s+/.test(line)) continue;
+    if (/^(INT\.|EXT\\.|INT\\/EXT\\.|SCENE\\s*\\d+)/i.test(line)) continue;
 
     const labelMatch = line.match(
-      /^\\s*(HOOK|INTRO|OUTRO|TRANSISI|TRANSITION|TAKEAWAY|NARASI|VOICE[- ]?OVER|VISUAL|SHOT|B-?ROLL)\\s*[:\\-]\\s*(.*)$/i,
+      /^\\s*(HOOK|INTRO|OUTRO|TRANSISI|TRANSITION|TAKEAWAY|NARASI|VOICE[- ]?OVER|VISUAL|SHOT|B-?ROLL)\s*[:\-]\s*(.*)$/i,
     );
     if (labelMatch) line = labelMatch[2].trim();
 
-    line = line.replace(/^\\s*\\([^)]{1,160}\\)\\s*/g, "");
-    line = line.replace(/^\\s*\\[[^\\]]{1,160}\\]\\s*/g, "");
-    line = line.replace(/^\\s*[-*•]\\s+/, "").trim();
+    line = line.replace(/^\s*\\([^)]{1,160}\\)\\s*/g, "");
+    line = line.replace(/^\s*\\[[^\\]]{1,160}\\]\\s*/g, "");
+    line = line.replace(/^\s*[-*•]\\s+/, "").trim();
 
     if (line) output.push(line);
   }
 
-  return output.join(" ").replace(/\\s+/g, " ").trim();
+  return output.join(" ").replace(/\s+/g, " ").trim();
 }
 
 function chunkText(text: string, maxChars = 120) {
   const normalized = text
     .replace(/\\r/g, "")
-    .replace(/\\n+/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   if (!normalized) return [];
@@ -133,7 +133,7 @@ function escapePowerShellSingle(value: string) {
 }
 
 function subtitlePathForFfmpeg(file: string) {
-  return file.replace(/\\\\/g, "/").replace(/:/g, "\\\\:");
+  return file.replace(/\\/g, "/").replace(/:/g, "\\:");
 }
 
 async function run(command: string, args: string[]) {
@@ -260,7 +260,7 @@ async function createDialogueAudio(options: {
     "  $synth.Speak([string]$item.line)",
     "}",
     "$synth.Dispose()",
-  ].join("\\r\\n");
+  ].join("\r\n");
 
   await fs.writeFile(scriptPath, ps, "utf8");
   await run("powershell.exe", [
@@ -361,7 +361,7 @@ export async function renderLocalVideo(input: {
 
   await fs.writeFile(
     dialoguePath,
-    dramaLines.map((line) => line.speaker + ": " + line.line).join("\\n"),
+    dramaLines.map((line) => line.speaker + ": " + line.line).join("\n"),
     "utf8",
   );
 
@@ -405,7 +405,7 @@ export async function renderLocalVideo(input: {
       .map(
         (file) =>
           "file '" +
-          file.replace(/\\\\/g, "/").replace(/'/g, "''") +
+          file.replace(/\\/g, "/").replace(/'/g, "''") +
           "'",
       )
       .join("\\n") + "\\n",
@@ -476,15 +476,15 @@ export async function renderLocalVideo(input: {
     .map(
       (cue, index) =>
         String(index + 1) +
-        "\\n" +
+        "\n" +
         formatSrtTime(cue.start) +
         " --> " +
         formatSrtTime(cue.end) +
-        "\\n" +
+        "\n" +
         cue.text +
         "\\n",
     )
-    .join("\\n");
+    .join("\n");
 
   await fs.writeFile(srtPath, srt, "utf8");
 
@@ -599,7 +599,7 @@ export async function renderLocalVideo(input: {
       .map(
         (file) =>
           "file '" +
-          file.replace(/\\\\/g, "/").replace(/'/g, "''") +
+          file.replace(/\\/g, "/").replace(/'/g, "''") +
           "'",
       )
       .join("\\n") + "\\n",
