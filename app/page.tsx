@@ -164,7 +164,7 @@ export default function Page() {
 
     setAiRunning(true);
     setResting(false);
-    setToast("Rhea is researching the project with OmniRoute · Free Provider Router.");
+    setToast("Rhea is building the story world and character cast with OmniRoute.");
     updateActiveAI({ phase: "RESEARCH", error: undefined });
     updateActiveProject({ status: "PRODUCING" });
 
