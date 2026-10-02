@@ -40,11 +40,15 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log(`[AI Office] Render started: ${projectId} (${imageAssets.length} images)`);
     const result = await renderLocalVideo({ projectId, title, script, director, model, imageAssets });
+    console.log(`[AI Office] Render completed: ${projectId}`);
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Local render failed.";
+    console.error("[AI Office] Render failed:", message);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Local render failed." },
+      { ok: false, error: message },
       { status: 502 },
     );
   }
