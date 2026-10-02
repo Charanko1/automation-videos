@@ -208,7 +208,7 @@ export default function Page() {
         model: scriptData.model ?? researchData.model,
         error: undefined,
       });
-      setToast("Wri finished. Dira is turning the script into a scene plan with DeepSeek V3.");
+      setToast("Wri finished. Dira is turning the script into a scene plan with OmniRoute.");
 
       const directorResponse = await fetch("/api/production/pipeline", {
         method: "POST",
@@ -484,7 +484,7 @@ export default function Page() {
           })}
         </div>
 
-        <div className="card"><div className="title"><Sparkles size={14}/> DeepSeek AI Brain</div>
+        <div className="card"><div className="title"><Sparkles size={14}/> OmniRoute AI Brain</div>
           <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>OmniRoute handles Research → Script → Director. Gemi then turns Dira&apos;s scene prompts into real 16:9 images with Cloudflare Workers AI.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
