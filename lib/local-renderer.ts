@@ -230,6 +230,7 @@ async function createDialogueAudio(options: {
   await fs.writeFile(dialogueJsonPath, JSON.stringify(lines, null, 2), "utf8");
 
   const ps = [
+    "$ErrorActionPreference = 'Stop'",
     "Add-Type -AssemblyName System.Speech",
     "$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer",
     "$synth.Rate = 0",
@@ -242,6 +243,7 @@ async function createDialogueAudio(options: {
     "$voiceIndex = 0",
     "$outDir = '" + escapePowerShellSingle(audioDir) + "'",
     "$null = New-Item -ItemType Directory -Force -Path $outDir",
+    "Write-Output ('TTS items=' + $items.Count + '; installedVoices=' + $voiceNames.Count + '; outDir=' + $outDir)",
     "foreach ($item in $items) {",
     "  $speaker = [string]$item.speaker",
     "  if (-not $voiceMap.ContainsKey($speaker)) {",
@@ -253,23 +255,56 @@ async function createDialogueAudio(options: {
     "    }",
     "  }",
     "  $voice = [string]$voiceMap[$speaker]",
-    "  if ($voice) { try { $synth.SelectVoice($voice) } catch {} }",
+    "  if ($voice) { $synth.SelectVoice($voice) }",
     "  $index = [int]$item.index",
     "  $file = Join-Path $outDir (($index.ToString('000')) + '.wav')",
+    "  $line = [string]$item.line",
+    "  if ([string]::IsNullOrWhiteSpace($line)) { throw ('Dialogue line ' + $index + ' is empty.') }",
+    "  if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }",
     "  $synth.SetOutputToWaveFile($file)",
-    "  $synth.Speak([string]$item.line)",
+    "  $synth.Speak($line)",
+    "  $synth.SetOutputToNull()",
+    "  Start-Sleep -Milliseconds 100",
+    "  if (-not (Test-Path -LiteralPath $file)) { throw ('Speech synthesis produced no WAV for dialogue line ' + $index + '.') }",
+    "  $length = (Get-Item -LiteralPath $file).Length",
+    "  if ($length -le 44) { throw ('Speech synthesis produced an empty WAV for dialogue line ' + $index + ' (' + $length + ' bytes).') }",
+    "  Write-Output ('TTS wrote line ' + $index + ': ' + $length + ' bytes')",
     "}",
+    "$synth.SetOutputToNull()",
     "$synth.Dispose()",
   ].join("\r\n");
 
   await fs.writeFile(scriptPath, ps, "utf8");
-  await run("powershell.exe", [
+  const ttsResult = await run("powershell.exe", [
     "-NoProfile",
     "-ExecutionPolicy",
     "Bypass",
     "-File",
     scriptPath,
   ]);
+
+  const expectedFiles = lines.map((line) =>
+    path.join(audioDir, String(line.index).padStart(3, "0") + ".wav"),
+  );
+  const missingFiles: string[] = [];
+  for (const file of expectedFiles) {
+    try {
+      const stats = await fs.stat(file);
+      if (!stats.isFile() || stats.size <= 44) missingFiles.push(file);
+    } catch {
+      missingFiles.push(file);
+    }
+  }
+
+  if (missingFiles.length > 0) {
+    const diagnostic = String(ttsResult.stdout ?? "").trim().slice(-3000);
+    throw new Error(
+      "Windows Speech Synthesis produced no valid WAV for dialogue line " +
+        lines.find((line) => missingFiles.some((file) => file.endsWith(String(line.index).padStart(3, "0") + ".wav")))?.index +
+        ". " +
+        (diagnostic ? "PowerShell: " + diagnostic : "Check installed Windows speech voices and System.Speech."),
+    );
+  }
 
   return { audioDir, dialogueJsonPath, scriptPath };
 }
