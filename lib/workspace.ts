@@ -49,6 +49,7 @@ export type AIProduction = {
   script?: string;
   director?: string;
   characterBible?: string;
+  scenePlans?: AIProductionScene[];
   imageAssets?: AIImageAsset[];
   model?: string;
   render?: AIRender;
