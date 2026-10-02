@@ -61,7 +61,7 @@ function cleanNarrationText(text: string) {
     if (!line) continue;
 
     if (/^\s*#{1,6}\s+/.test(line)) continue;
-    if (/^(INT\.|EXT\.|INT\\/EXT\.|SCENE\s*\d+)/i.test(line)) continue;
+    if (/^(INT\.|EXT\.|SCENE\s*\d+)/i.test(line)) continue;
 
     const labelMatch = line.match(
       /^\s*(HOOK|INTRO|OUTRO|TRANSISI|TRANSITION|TAKEAWAY|NARASI|VOICE[- ]?OVER|VISUAL|SHOT|B-?ROLL)\s*[:\-]\s*(.*)$/i,
@@ -583,6 +583,12 @@ export async function renderLocalVideo(input: {
 
     clipPaths.push(clipPath);
     generatedImageCount += 1;
+  }
+
+  if (clipPaths.length !== plan.scenes.length) {
+    throw new Error(
+      "Drama render requires one generated image for every Director scene. Generate all scene keyframes before rendering.",
+    );
   }
 
   if (clipPaths.length === 0) {
