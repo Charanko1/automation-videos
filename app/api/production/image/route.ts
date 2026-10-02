@@ -106,7 +106,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({
       ok: false,
-      code: "cloudflare_image_exception",
+      code: "image_generation_exception",
       error: error instanceof Error ? error.message : "Unknown Cloudflare image error.",
     }, { status: 500 });
   }
