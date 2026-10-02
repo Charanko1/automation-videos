@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateWithCloudflareImage } from "../../../../lib/cloudflare-image";
+import { generateWithOmniRouteImage } from "../../../../lib/omniroute-image";
 
 function safeSegment(value: string, fallback: string) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -31,13 +32,45 @@ export async function POST(request: Request) {
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
     ].filter(Boolean).join("\n\n");
 
-    const result = await generateWithCloudflareImage({
-      prompt: fullPrompt,
-      width: 1024,
-      height: 576,
-      numSteps: 4,
-      imageBase64: referenceImageBase64 || undefined,
-    });
+    const omniImageModel = process.env.OMNIROUTE_IMAGE_MODEL?.trim();
+    const useOmniRoute = Boolean(omniImageModel) && !referenceImageBase64;
+
+    let result: { imageBase64: string; mimeType: string; model: string };
+    let provider: "OmniRoute" | "Cloudflare Workers AI";
+
+    if (useOmniRoute) {
+      try {
+        result = await generateWithOmniRouteImage({
+          prompt: fullPrompt,
+          width: 1024,
+          height: 576,
+          model: omniImageModel,
+        });
+        provider = "OmniRoute";
+      } catch (omniError) {
+        result = await generateWithCloudflareImage({
+          prompt: fullPrompt,
+          width: 1024,
+          height: 576,
+          numSteps: 4,
+          imageBase64: referenceImageBase64 || undefined,
+        });
+        provider = "Cloudflare Workers AI";
+        console.warn(
+          "OmniRoute image generation failed; Cloudflare fallback used:",
+          omniError instanceof Error ? omniError.message : omniError,
+        );
+      }
+    } else {
+      result = await generateWithCloudflareImage({
+        prompt: fullPrompt,
+        width: 1024,
+        height: 576,
+        numSteps: 4,
+        imageBase64: referenceImageBase64 || undefined,
+      });
+      provider = "Cloudflare Workers AI";
+    }
 
     const projectSlug = safeSegment(projectId, "project");
     const sceneSlug = safeSegment(sceneId, "scene-01");
@@ -51,11 +84,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      provider: "Cloudflare Workers AI",
+      provider,
       model: result.model,
       assetUrl: "/" + relativeDir.replaceAll(path.sep, "/") + "/" + filename,
       mimeType: result.mimeType,
-      message: "Cloudflare generated and saved the image asset.",
+      message: `${provider} generated and saved the image asset.`,
     });
   } catch (error) {
     return NextResponse.json({
