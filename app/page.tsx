@@ -164,95 +164,183 @@ export default function Page() {
 
     setAiRunning(true);
     setResting(false);
-    setToast("Rhea is building the story world and character cast with OmniRoute.");
-    updateActiveAI({ phase: "RESEARCH", error: undefined });
-    updateActiveProject({ status: "PRODUCING" });
+    setToast("Checking existing drama stages before spending another AI call…");
+
+    const requestedSceneCount = Math.min(12, Math.max(6, activeProject.totalScenes));
+    let researchText = activeProject.ai?.research?.trim() ?? "";
+    let scriptText = activeProject.ai?.script?.trim() ?? "";
+    let directorText = activeProject.ai?.director?.trim() ?? "";
+    let characterBible = activeProject.ai?.characterBible?.trim() ?? "";
+    let directorScenes = Array.isArray(activeProject.ai?.scenePlans) ? activeProject.ai.scenePlans : [];
+    let generatedAssets: NonNullable<AIProduction["imageAssets"]> = Array.isArray(activeProject.ai?.imageAssets)
+      ? [...activeProject.ai.imageAssets]
+      : [];
 
     try {
-      const researchResponse = await fetch("/api/production/pipeline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: "research", title: activeProject.title, format: activeProject.type, sceneCount: Math.min(12, Math.max(6, activeProject.totalScenes)) }),
-      });
-      const researchData = await researchResponse.json();
-      if (!researchResponse.ok || !researchData.ok) {
-        throw new Error(researchData.error ?? "Research stage failed.");
+      updateActiveProject({ status: "PRODUCING" });
+
+      if (!researchText) {
+        setToast("Rhea is building the story world and character cast with OmniRoute.");
+        updateActiveAI({ phase: "RESEARCH", error: undefined });
+
+        const response = await fetch("/api/production/pipeline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: "research",
+            title: activeProject.title,
+            format: activeProject.type,
+            sceneCount: requestedSceneCount,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Research stage failed.");
+        }
+
+        researchText = typeof data.text === "string" ? data.text.trim() : "";
+        if (!researchText) throw new Error("Rhea returned an empty story foundation.");
+
+        updateActiveAI({
+          phase: "SCRIPT",
+          research: researchText,
+          model: data.model,
+          error: undefined,
+        });
+      } else {
+        setToast("Rhea already completed. Reusing the existing story foundation.");
       }
 
-      updateActiveAI({
-        phase: "SCRIPT",
-        research: researchData.text,
-        model: researchData.model,
-        error: undefined,
-      });
-      setToast("Rhea finished. Wri is writing the screenplay and dialogue.");
+      if (!scriptText) {
+        setToast("Wri is writing the screenplay and dialogue.");
+        updateActiveAI({ phase: "SCRIPT", error: undefined });
 
-      const scriptResponse = await fetch("/api/production/pipeline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stage: "script",
-          title: activeProject.title,
-          format: activeProject.type,
-          sceneCount: Math.min(12, Math.max(6, activeProject.totalScenes)),
-          research: researchData.text,
-        }),
-      });
-      const scriptData = await scriptResponse.json();
-      if (!scriptResponse.ok || !scriptData.ok) {
-        throw new Error(scriptData.error ?? "Script stage failed.");
+        const response = await fetch("/api/production/pipeline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: "script",
+            title: activeProject.title,
+            format: activeProject.type,
+            sceneCount: requestedSceneCount,
+            research: researchText,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Script stage failed.");
+        }
+
+        scriptText = typeof data.text === "string" ? data.text.trim() : "";
+        if (!scriptText) throw new Error("Wri returned an empty screenplay.");
+
+        updateActiveAI({
+          phase: "DIRECTOR",
+          script: scriptText,
+          model: data.model ?? activeProject.ai?.model,
+          error: undefined,
+        });
+      } else {
+        setToast("Wri already completed. Reusing the existing screenplay.");
       }
 
-      updateActiveAI({
-        phase: "DIRECTOR",
-        script: scriptData.text,
-        model: scriptData.model ?? researchData.model,
-        error: undefined,
-      });
-      setToast("Wri finished. Dira is blocking the actors and planning the drama scenes.");
+      const directorIsUsable =
+        Boolean(directorText) &&
+        Boolean(characterBible) &&
+        directorScenes.length === requestedSceneCount &&
+        directorScenes.every((scenePlan) => scenePlan?.sceneId && scenePlan?.visualPrompt);
 
-      const directorResponse = await fetch("/api/production/pipeline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stage: "director",
-          title: activeProject.title,
-          format: activeProject.type,
-          sceneCount: Math.min(12, Math.max(6, activeProject.totalScenes)),
-          script: scriptData.text,
-        }),
-      });
-      const directorData = await directorResponse.json();
-      if (!directorResponse.ok || !directorData.ok) {
-        throw new Error(directorData.error ?? "Director stage failed.");
-      }
+      if (!directorIsUsable) {
+        setToast("Dira is blocking the actors and planning the drama scenes.");
+        updateActiveAI({ phase: "DIRECTOR", error: undefined });
 
-      const directorScenes = Array.isArray(directorData.scenes) ? directorData.scenes : [];
-      if (directorScenes.length === 0) {
-        throw new Error("Dira returned no production scenes.");
+        const response = await fetch("/api/production/pipeline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: "director",
+            title: activeProject.title,
+            format: activeProject.type,
+            sceneCount: requestedSceneCount,
+            script: scriptText,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Director stage failed.");
+        }
+
+        directorText = typeof data.text === "string" ? data.text.trim() : "";
+        characterBible = typeof data.characterBible === "string" ? data.characterBible.trim() : "";
+        directorScenes = Array.isArray(data.scenes) ? data.scenes : [];
+
+        if (!directorText) throw new Error("Dira returned an empty director plan.");
+        if (!characterBible) {
+          throw new Error(
+            "Dira output is missing the character bible. The Director response must contain character_bible before image generation.",
+          );
+        }
+        if (directorScenes.length !== requestedSceneCount) {
+          throw new Error(
+            `Dira returned ${directorScenes.length} scenes, but exactly ${requestedSceneCount} were requested.`,
+          );
+        }
+
+        const silentScenes = directorScenes.filter(
+          (scenePlan: { dialogue?: unknown[] }) => !Array.isArray(scenePlan.dialogue) || scenePlan.dialogue.length === 0,
+        );
+        if (silentScenes.length > 0) {
+          throw new Error(
+            `Dira returned ${silentScenes.length} scene(s) without dialogue. Every scene must contain at least one character line.`,
+          );
+        }
+
+        // A new Director plan changes scene identity, prompts, and continuity, so old images are not safe to reuse.
+        generatedAssets = [];
+
+        updateActiveAI({
+          phase: "IMAGES",
+          director: directorText,
+          characterBible,
+          scenePlans: directorScenes,
+          imageAssets: [],
+          model: data.model ?? activeProject.ai?.model,
+          error: undefined,
+        });
+
+        updateActiveProject({
+          status: "PRODUCING",
+          currentScene: 0,
+          totalScenes: directorScenes.length,
+        });
+        setScene(0);
+      } else {
+        setToast("Dira already completed. Reusing the existing director plan and character bible.");
       }
 
       updateActiveAI({
         phase: "IMAGES",
-        director: directorData.text,
-        characterBible: directorData.characterBible ?? "",
-        scenePlans: directorData.scenes ?? [],
-        imageAssets: [],
-        model: directorData.model ?? scriptData.model ?? researchData.model,
+        director: directorText,
+        characterBible,
+        scenePlans: directorScenes,
+        imageAssets: generatedAssets,
         error: undefined,
       });
 
       updateActiveProject({
         status: "PRODUCING",
-        currentScene: 0,
         totalScenes: directorScenes.length,
       });
-      setScene(0);
-      setToast(`Dira finished. Gemi is generating ${directorScenes.length} cinematic drama keyframes.`);
 
-      const generatedAssets: NonNullable<AIProduction["imageAssets"]> = [];
       for (let index = 0; index < directorScenes.length; index += 1) {
         const scenePlan = directorScenes[index];
+        const existing = generatedAssets.find((asset) => asset.sceneId === scenePlan.sceneId);
+
+        if (existing?.assetUrl) {
+          setToast(`Gemi · Scene ${index + 1}/${directorScenes.length} · Reusing existing keyframe.`);
+          continue;
+        }
+
         setToast(`Gemi · Scene ${index + 1}/${directorScenes.length} · Generating image…`);
 
         const imageResponse = await fetch("/api/production/image", {
@@ -262,7 +350,7 @@ export default function Page() {
             projectId: activeProject.id,
             sceneId: scenePlan.sceneId,
             prompt: scenePlan.visualPrompt,
-            characterBible: directorData.characterBible ?? "",
+            characterBible,
             referenceCharacterIds: scenePlan.referenceCharacterIds ?? [],
             charactersPresent: scenePlan.charactersPresent ?? [],
             emotionalBeat: scenePlan.emotionalBeat ?? "",
@@ -271,6 +359,7 @@ export default function Page() {
           }),
         });
         const imageData = await imageResponse.json().catch(() => ({}));
+
         if (!imageResponse.ok || !imageData.ok) {
           throw new Error(imageData.error ?? `Image generation failed for ${scenePlan.sceneId}.`);
         }
@@ -282,6 +371,7 @@ export default function Page() {
           narrationExcerpt: scenePlan.narrationExcerpt,
           generatedAt: new Date().toISOString(),
         });
+
         updateActiveAI({
           phase: "IMAGES",
           imageAssets: [...generatedAssets],
@@ -289,23 +379,27 @@ export default function Page() {
         });
       }
 
-      // AI pre-production is now complete: the project has a scene plan plus real image assets.
       updateActiveAI({
         phase: "COMPLETED",
-        scenePlans: directorData.scenes ?? [],
+        research: researchText,
+        script: scriptText,
+        director: directorText,
+        characterBible,
+        scenePlans: directorScenes,
         imageAssets: generatedAssets,
-        director: directorData.text,
-        characterBible: directorData.characterBible ?? "",
-        model: directorData.model ?? scriptData.model ?? researchData.model,
+        model: activeProject.ai?.model,
         error: undefined,
       });
 
-      // Hand the image-complete project to the normal production loop.
-      updateActiveProject({ status: "PRODUCING", currentScene: 0 });
+      updateActiveProject({
+        status: "PRODUCING",
+        currentScene: 0,
+        totalScenes: directorScenes.length,
+      });
       setScene(0);
       setRunning(true);
       setResting(false);
-      setToast("AI pipeline complete. Story → Screenplay → Director → Character Keyframes → Production started.");
+      setToast("AI pipeline complete. Reused completed stages where possible; production started.");
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI pipeline failed.";
