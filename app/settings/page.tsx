@@ -141,7 +141,7 @@ export default function SettingsPage() {
       <div className="card">
         <div className="title"><Bot size={14}/> CHATGPT PLAN CONNECTION</div>
         <div className="muted" style={{lineHeight:1.6,margin:"8px 0 12px"}}>
-          Experimental local test for OpenAI's Sign in with ChatGPT flow. It does not use an API key.
+          Experimental local test for OpenAI's Sign in with ChatGPT flow. The production pipeline remains focused on character-driven drama. It does not use an API key.
           OpenAI's current OSS docs describe ChatGPT plan usage for eligible accounts and Responses API requests; this screen is testing the direct local flow.
         </div>
         <div className="provider-row">
@@ -193,12 +193,12 @@ export default function SettingsPage() {
       <CloudflareImageTest />
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
-          ["OmniRoute · Free Provider Router","Primary AI gateway for research, scripts, and direction"],
-          ["Cloudflare Workers AI","Gemi image-generation stage for production scene art"],
-          ["Local renderer","Stage for narration, subtitles, camera motion, and final video assembly"],
+          ["OmniRoute · Free Provider Router","Primary AI gateway for story development, screenplay, and direction"],
+          ["Cloudflare Workers AI","Gemi image-generation stage for character keyframes and drama scenes"],
+          ["Local renderer","Stage for character dialogue, clean subtitles, camera-aware motion, and final assembly"],
           ["YouTube","Publishing integration; not an AI provider"],
         ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "OmniRoute · Free Provider Router" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
-        <div className="notice" style={{marginTop:10}}>This workspace uses OmniRoute as the text gateway for Rhea, Wri, and Dira. OmniRoute routes `auto` requests to a connected upstream model (for example, the currently resolved model shown in the Office status). Connect at least one provider in OmniRoute and set OMNIROUTE_BASE_URL, OMNIROUTE_API_KEY, and OMNIROUTE_MODEL in .env.local. Cloudflare Workers AI is configured separately for Gemi scene-image generation.</div>
+        <div className="notice" style={{marginTop:10}}>This workspace uses OmniRoute as the text gateway for Rhea, Wri, and Dira. The intended output is a character-driven drama: story world → screenplay → acting/blocking → character keyframes → dialogue → final edit. Connect at least one provider in OmniRoute and set OMNIROUTE_BASE_URL, OMNIROUTE_API_KEY, and OMNIROUTE_MODEL in .env.local. Cloudflare Workers AI is configured separately for Gemi scene-image generation.</div>
       </div>
       <div className="card"><div className="title"><Bell size={14}/> OPERATIONS POLICY</div>
         <div className="notice"><Check size={14}/> Provider limits should pause the affected queue on the server. The client Office view only reflects the state supplied by the production engine.</div>
