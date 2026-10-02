@@ -6,7 +6,7 @@ export type ParsedDramaPlan = {
 };
 
 function stripThinkingText(text: string) {
-  return text.replace(/<think>[\\s\\S]*?<\\/think>/gi, "").trim();
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 function extractMarkedJson(text: string, startMarker: string, endMarker: string) {
@@ -20,8 +20,8 @@ function extractMarkedJson(text: string, startMarker: string, endMarker: string)
   const raw = text
     .slice(contentStart, end)
     .trim()
-    .replace(/^\`\`\`json\s*/i, "")
-    .replace(/\s*\`\`\`$/i, "")
+    .replace(/^```json\s*/i, "")
+    .replace(/\s*```$/i, "")
     .trim();
 
   try {
