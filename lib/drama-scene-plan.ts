@@ -98,7 +98,6 @@ function parseDialogue(value: unknown): AIProductionDialogue[] {
 function buildVisualPrompt(
   prompt: string,
   scene: Record<string, unknown>,
-  characterBible: string,
 ) {
   const camera = asString(scene.camera_and_composition);
   const lighting = asString(scene.lighting_and_color);
@@ -117,7 +116,6 @@ function buildVisualPrompt(
     camera ? "CAMERA: " + camera : "",
     lighting ? "LIGHTING: " + lighting : "",
     environment ? "ENVIRONMENT: " + environment : "",
-    characterBible ? "IMMUTABLE CHARACTER BIBLE:\n" + characterBible : "",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -156,7 +154,7 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
           ? scene.characters_present.filter((value): value is string => typeof value === "string" && value.trim())
           : undefined,
         emotionalBeat: asString(scene.emotional_beat) || undefined,
-        visualPrompt: buildVisualPrompt(prompt, scene, characterBible),
+        visualPrompt: buildVisualPrompt(prompt, scene),
         cameraAndComposition: asString(scene.camera_and_composition) || undefined,
         lightingAndColor: asString(scene.lighting_and_color) || undefined,
         environment: asString(scene.environment) || undefined,
