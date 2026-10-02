@@ -9,10 +9,20 @@ export type AIRender = {
   error?: string;
 };
 
+export type AIProductionDialogue = {
+  speaker: string;
+  characterId?: string;
+  line: string;
+  emotion?: string;
+};
+
 export type AIProductionScene = {
   sceneId: string;
   purpose?: string;
   narrationExcerpt?: string;
+  dialogue?: AIProductionDialogue[];
+  charactersPresent?: string[];
+  emotionalBeat?: string;
   visualPrompt: string;
   cameraAndComposition?: string;
   lightingAndColor?: string;
@@ -76,7 +86,7 @@ export const WORKSPACE_STORAGE_KEY = "ai-office.workspace.v1";
 export const DEFAULT_SETTINGS: ProductionSettings = {
   dailyCeiling: 30000,
   targetVideos: 2,
-  scenesPerVideo: 30,
+  scenesPerVideo: 12,
   maxBreaks: 2,
 };
 
