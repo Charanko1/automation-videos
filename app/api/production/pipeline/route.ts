@@ -94,8 +94,10 @@ export async function POST(request: Request) {
         "This is DRAMA. The characters are actors inside one continuous world. Do not summarize a topic.",
         "",
         "STRICT OUTPUT: return exactly ONE valid JSON object and nothing else. No markdown fences. No commentary.",
-        "Top-level keys: character_bible and scenes.",
-        "character_bible must be a JSON array of character objects (not a prose paragraph) and must define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
+        "Return this exact top-level shape and order: { \"character_bible\": [...], \"scenes\": [...] }. Put character_bible FIRST and scenes SECOND.",
+        "character_bible MUST be a JSON array of 3-6 character objects, never a prose paragraph. It must define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
+        "Do not repeat the full character bible inside scenes. Keep character fields concise but concrete so the complete JSON fits in one response.",
+        "character_bible must stay as the top-level JSON array described above; do not rename it or move it inside scenes.",
         `Create exactly ${requestedSceneCount} scenes. Do not create more or fewer.`,
         "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
         "dialogue is an array of objects: speaker, character_id, line, emotion. Every scene must contain at least one dialogue line for this production pass.",
@@ -111,6 +113,7 @@ export async function POST(request: Request) {
         "NEVER: comic panels, 2D illustration, anime, manga, graphic novel, flat vector art, thick ink outlines, photorealistic photography, infographic layout, poster art, text-heavy compositions, random extra characters, random costume changes.",
         "Prioritize readable acting shots: two-shots, over-the-shoulder dialogue, close-ups, reaction shots, and motivated establishing shots.",
         "Do not claim that any image, audio, or video asset has already been generated.",
+        "If output length is constrained, prioritize a complete character_bible and exactly " + requestedSceneCount + " complete scenes over commentary.",
         "Keep all dialogue lines short enough for natural speech.",
         "",
         "SCREENPLAY:",
@@ -123,8 +126,13 @@ export async function POST(request: Request) {
 
     if (stage === "director") {
       if (!dramaPlan.characterBible) {
+        console.error("[AI Office] Director raw output missing character_bible:", result.text);
         return NextResponse.json(
-          { ok: false, error: "Director returned no character_bible. Regenerate the director stage." },
+          {
+            ok: false,
+            error: "Director returned no character_bible. The raw Director output was not in the expected JSON shape.",
+            directorRawPreview: result.text.slice(0, 2500),
+          },
           { status: 502 },
         );
       }
