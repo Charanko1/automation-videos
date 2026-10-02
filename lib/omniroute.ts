@@ -39,7 +39,6 @@ async function requestOmniRoute(path: string, init: RequestInit = {}) {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      ...(init.headers ?? {}),
     },
     cache: "no-store",
   });
