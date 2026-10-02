@@ -241,6 +241,7 @@ async function createDialogueAudio(options: {
     "$voiceNames = @($synth.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo.Name } | Where-Object { $_ })",
     "$voiceMap = @{}",
     "$voiceIndex = 0",
+    "$lineCounter = 0",
     "$outDir = '" + escapePowerShellSingle(audioDir) + "'",
     "$null = New-Item -ItemType Directory -Force -Path $outDir",
     "Write-Output ('TTS items=' + $items.Count + '; installedVoices=' + $voiceNames.Count + '; outDir=' + $outDir)",
