@@ -299,10 +299,13 @@ export async function renderLocalVideo(input: {
   }
 
   const projectSlug = safeName(input.projectId) + "-" + Date.now();
+
+  // Keep all render intermediates outside Next.js' public tree. Writing dozens
+  // of WAV/MP4/text files into public while a dev request is active can make
+  // the dev watcher restart or interrupt the HTTP connection.
   const outDir = path.join(
     process.cwd(),
-    "public",
-    "generated",
+    ".ai-office-render-temp",
     projectSlug,
   );
   await fs.mkdir(outDir, { recursive: true });
@@ -718,6 +721,17 @@ export async function renderLocalVideo(input: {
 
   await fs.rm(dialogueJsonPath, { force: true }).catch(() => undefined);
   await fs.rm(voiceScriptPath, { force: true }).catch(() => undefined);
+
+  // Publish the completed render only after FFmpeg/TTS are fully done.
+  // This keeps Next.js from watching a directory that is being mutated rapidly.
+  const publishedDir = path.join(
+    process.cwd(),
+    "public",
+    "generated",
+    projectSlug,
+  );
+  await fs.mkdir(path.dirname(publishedDir), { recursive: true });
+  await fs.cp(outDir, publishedDir, { recursive: true, force: true });
 
   const publicBase = "/generated/" + projectSlug;
 
