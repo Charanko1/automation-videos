@@ -135,6 +135,12 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function asText(value: unknown) {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
 function serializeCharacterBible(value: unknown) {
   if (typeof value === "string") return value.trim();
 
@@ -322,15 +328,11 @@ function looksLikeScene(value: unknown) {
 }
 
 function sceneCollection(value: unknown): unknown[] {
-  if (Array.isArray(value)) {
-    return value.filter(looksLikeScene);
-  }
+  if (Array.isArray(value)) return value;
 
   if (!value || typeof value !== "object") return [];
 
-  const values = Object.values(value);
-  const sceneValues = values.filter(looksLikeScene);
-  return sceneValues.length > 0 ? sceneValues : [];
+  return Object.values(value);
 }
 
 function findSceneArray(parsedValues: unknown[]) {
@@ -419,7 +421,7 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
       if (!entry || typeof entry !== "object") return null;
 
       const scene = entry as Record<string, unknown>;
-      const rawSceneNumber = asString(
+      const rawSceneNumber = asText(
         scene.scene_id ??
           scene.sceneId ??
           scene.scene_number ??
