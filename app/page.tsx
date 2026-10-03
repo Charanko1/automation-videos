@@ -166,19 +166,19 @@ export default function Page() {
     setResting(false);
     setToast("Checking existing Kids Shorts stages before spending another AI call…");
 
-    const requestedSceneCount = Math.min(12, Math.max(6, activeProject.totalScenes));
-    // This release prefers the refreshed ChatGPT plan brain. Projects created before
+    const requestedSceneCount = Math.min(8, Math.max(5, activeProject.totalScenes));
+    // This release uses the refreshed ChatGPT plan brain for kids Shorts. Projects created before
     // this switch have no textProvider marker, so they are intentionally regenerated
     // once instead of silently reusing OmniRoute-era artifacts.
-    const dramaArtifacts =
+    const kidsArtifacts =
       activeProject.ai?.pipelineVersion === "drama-v2" &&
       activeProject.ai?.textProvider === "ChatGPT plan";
-    let researchText = dramaArtifacts ? activeProject.ai?.research?.trim() ?? "" : "";
-    let scriptText = dramaArtifacts ? activeProject.ai?.script?.trim() ?? "" : "";
-    let directorText = dramaArtifacts ? activeProject.ai?.director?.trim() ?? "" : "";
-    let characterBible = dramaArtifacts ? activeProject.ai?.characterBible?.trim() ?? "" : "";
-    let directorScenes = dramaArtifacts && Array.isArray(activeProject.ai?.scenePlans) ? activeProject.ai.scenePlans : [];
-    let generatedAssets: NonNullable<AIProduction["imageAssets"]> = dramaArtifacts && Array.isArray(activeProject.ai?.imageAssets)
+    let researchText = kidsArtifacts ? activeProject.ai?.research?.trim() ?? "" : "";
+    let scriptText = kidsArtifacts ? activeProject.ai?.script?.trim() ?? "" : "";
+    let directorText = kidsArtifacts ? activeProject.ai?.director?.trim() ?? "" : "";
+    let characterBible = kidsArtifacts ? activeProject.ai?.characterBible?.trim() ?? "" : "";
+    let directorScenes = kidsArtifacts && Array.isArray(activeProject.ai?.scenePlans) ? activeProject.ai.scenePlans : [];
+    let generatedAssets: NonNullable<AIProduction["imageAssets"]> = kidsArtifacts && Array.isArray(activeProject.ai?.imageAssets)
       ? [...activeProject.ai.imageAssets]
       : [];
 
@@ -244,7 +244,7 @@ export default function Page() {
 
         updateActiveAI({
           phase: "DIRECTOR",
-          pipelineVersion: "drama-v2",
+          pipelineVersion: "kids-shorts-v1",
           script: scriptText,
           model: data.model ?? activeProject.ai?.model,
           textProvider: data.provider === "ChatGPT plan" ? "ChatGPT plan" : "OmniRoute",
@@ -330,7 +330,7 @@ export default function Page() {
 
       updateActiveAI({
         phase: "IMAGES",
-        pipelineVersion: "drama-v2",
+        pipelineVersion: "kids-shorts-v1",
         director: directorText,
         characterBible,
         scenePlans: directorScenes,
@@ -404,7 +404,7 @@ export default function Page() {
 
       updateActiveAI({
         phase: "COMPLETED",
-        pipelineVersion: "drama-v2",
+        pipelineVersion: "kids-shorts-v1",
         research: researchText,
         script: scriptText,
         director: directorText,
@@ -587,7 +587,7 @@ export default function Page() {
         })}
         <Link className="hire" href="/projects">+ Create Project</Link>
         <div className="card"><div className="mini">Active project</div><div className="projectName">{activeProject?.title ?? "No active project"}</div><div className="muted">{activeProject ? `${activeProject.type} · ${activeProject.totalScenes} scenes` : "Create a project to start production."}</div><div className="prog"><i style={{width:`${pct}%`}}/></div><div className="projectFoot"><span>Scene {scene}/{totalScenes}</span><b>{pct}%</b></div></div>
-        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "AI PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. OmniRoute handles story development, screenplay, and direction; Gemi generates cinematic character keyframes for the drama."}</div></div>
+        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "KIDS SHORTS PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. OmniRoute handles story development, screenplay, and direction; Gemi generates cinematic character keyframes for the drama."}</div></div>
       </aside>
 
       <section className="world">
