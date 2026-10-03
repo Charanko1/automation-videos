@@ -216,14 +216,38 @@ export async function generateWithOmniRouteVideo(
     }),
   });
 
-  const data = (await response.json().catch(() => ({}))) as OmniRouteVideoResponse;
+  const rawResponseText = await response.text().catch(() => "");
+  let data: OmniRouteVideoResponse = {};
+  try {
+    data = rawResponseText ? (JSON.parse(rawResponseText) as OmniRouteVideoResponse) : {};
+  } catch {
+    // Keep the raw text for diagnostics when OmniRoute returns a non-JSON response.
+  }
 
   if (!response.ok) {
     const providerMessage =
       data?.error?.message ??
       data?.message ??
+      rawResponseText.slice(0, 500) ??
       `OmniRoute video request failed (${response.status}).`;
-    throw new Error(providerMessage);
+
+    console.error("[AI Office] I2V OMNIROUTE RESPONSE", {
+      buildMarker: "I2V-OMNI-BUILD-20261003-1",
+      status: response.status,
+      statusText: response.statusText,
+      model,
+      responseUrl: response.url,
+      cacheStatus: response.headers.get("X-OmniRoute-Cache"),
+      provider: response.headers.get("X-OmniRoute-Provider"),
+      requestId: response.headers.get("X-OmniRoute-Request-Id"),
+      omniRouteVersion: response.headers.get("X-OmniRoute-Version"),
+      contentType: response.headers.get("content-type"),
+      body: rawResponseText.slice(0, 1000),
+    });
+
+    throw new Error(
+      `OmniRoute video request failed (${response.status}). ${providerMessage}`,
+    );
   }
 
   const media = extractMedia(data);
