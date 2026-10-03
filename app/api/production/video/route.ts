@@ -30,7 +30,16 @@ function extensionForMime(mimeType: string) {
   return ".mp4";
 }
 
-async function downloadVideo(url: string) {
+async function downloadVideo(
+  url: string,
+  metadata?: {
+    model?: string;
+    cacheStatus?: string;
+    provider?: string;
+    requestId?: string;
+    omniRouteVersion?: string;
+  },
+) {
   const baseUrl =
     process.env.OMNIROUTE_BASE_URL?.trim().replace(/\/v1\/?$/, "") ||
     "http://127.0.0.1:20128";
@@ -79,9 +88,35 @@ async function downloadVideo(url: string) {
 
     lastStatus = response.status;
     lastDetail = (await response.text().catch(() => "")).slice(0, 300);
+
+    console.error("[AI Office] I2V artifact fetch failed:", {
+      status: response.status,
+      finalUrlHost: (() => {
+        try {
+          return new URL(response.url || absoluteUrl).hostname;
+        } catch {
+          return parsed.hostname;
+        }
+      })(),
+      contentType: response.headers.get("content-type"),
+      redirected: response.redirected,
+      model: metadata?.model,
+      provider: metadata?.provider,
+      cacheStatus: metadata?.cacheStatus,
+      requestId: metadata?.requestId,
+      omniRouteVersion: metadata?.omniRouteVersion,
+      detail: lastDetail,
+    });
   }
 
   const host = parsed.hostname;
+  const finalUrlHost = (() => {
+    try {
+      return new URL(absoluteUrl).hostname;
+    } catch {
+      return host;
+    }
+  })();
   const signedDate = parsed.searchParams.get("X-Amz-Date");
   const signedExpires = parsed.searchParams.get("X-Amz-Expires");
   const signedInfo =
@@ -89,7 +124,19 @@ async function downloadVideo(url: string) {
       ? ` Signed URL: X-Amz-Date=${signedDate}, X-Amz-Expires=${signedExpires}s.`
       : "";
   throw new Error(
-    `Video artifact download failed (${lastStatus}) from ${host}.${signedInfo}${lastDetail ? ` Upstream: ${lastDetail}` : ""}`,
+    [
+      `Video artifact download failed (${lastStatus}) from ${host}.`,
+      `Final host: ${finalUrlHost}.`,
+      metadata?.model ? `Model: ${metadata.model}.` : "",
+      metadata?.provider ? `Provider: ${metadata.provider}.` : "",
+      metadata?.cacheStatus ? `OmniRoute cache: ${metadata.cacheStatus}.` : "",
+      metadata?.omniRouteVersion ? `OmniRoute version: ${metadata.omniRouteVersion}.` : "",
+      metadata?.requestId ? `Request id: ${metadata.requestId}.` : "",
+      signedInfo,
+      lastDetail ? `Upstream: ${lastDetail}` : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
   );
 }
 
@@ -174,7 +221,13 @@ export async function POST(request: Request) {
       destination = path.join(outputDir, sceneSlug + extension);
       await fs.writeFile(destination, bytes);
     } else if (result.videoUrl) {
-      const downloaded = await downloadVideo(result.videoUrl);
+      const downloaded = await downloadVideo(result.videoUrl, {
+        model: result.model,
+        cacheStatus: result.cacheStatus,
+        provider: result.provider,
+        requestId: result.requestId,
+        omniRouteVersion: result.omniRouteVersion,
+      });
       extension = downloaded.extension;
       destination = path.join(outputDir, sceneSlug + extension);
       await fs.writeFile(destination, downloaded.bytes);
