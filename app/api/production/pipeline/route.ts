@@ -133,10 +133,69 @@ export async function POST(request: Request) {
       ].join("\n");
     }
 
-    const result = await generateWithOmniRoute(prompt);
-    const dramaPlan = stage === "director" ? parseDirectorPlan(result.text) : { characterBible: "", scenes: [] };
+    let result = await generateWithOmniRoute(prompt);
 
     if (stage === "director") {
+      try {
+        result = await generateWithOmniRoute(prompt, undefined, {
+          responseFormat: { type: "json_object" },
+          noCache: true,
+        });
+      } catch (structuredError) {
+        console.warn(
+          "[AI Office] Structured Director request was not accepted; falling back to normal JSON prompting:",
+          structuredError,
+        );
+      }
+    }
+
+    let dramaPlan = stage === "director"
+      ? parseDirectorPlan(result.text)
+      : { characterBible: "", scenes: [] };
+
+    if (stage === "director") {
+      const initialPlanNeedsRepair =
+        !dramaPlan.characterBible ||
+        dramaPlan.scenes.length !== requestedSceneCount;
+
+      if (initialPlanNeedsRepair) {
+        const repairPrompt = [
+          "You are Dira, the Director of a cute 3D animated YouTube Shorts studio.",
+          "Repair and normalize the Director output below into one valid JSON object.",
+          "PRODUCTION LANGUAGE: Bahasa Indonesia (id-ID).",
+          "Do not invent a new story. Preserve the screenplay's characters, events, locations, actions, and emotional beats.",
+          "The final JSON MUST contain exactly these top-level keys in this order: character_bible, scenes.",
+          "character_bible MUST be a JSON array of 3-6 recurring character objects.",
+          "scenes MUST be an array of exactly 6 scene objects.",
+          "Every scene object MUST contain scene_id, purpose, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
+          "Every scene MUST have at least one dialogue object unless a single brief silent reaction beat is clearly needed; the whole Short must contain dialogue.",
+          "Every dialogue object MUST contain speaker, character_id, line, emotion. Write dialogue in natural Bahasa Indonesia.",
+          "Set aspect_ratio to 9:16 for every scene.",
+          "Keep dialogue short: maximum 12 words per line.",
+          "Return ONLY valid JSON. No markdown fences. No commentary.",
+          "",
+          "ORIGINAL SCREENPLAY:",
+          script,
+          "",
+          "DIRECTOR OUTPUT TO REPAIR:",
+          result.text.slice(0, 14000),
+        ].join("\n");
+
+        try {
+          const repairedResult = await generateWithOmniRoute(repairPrompt, undefined, {
+            responseFormat: { type: "json_object" },
+            noCache: true,
+          });
+          const repairedPlan = parseDirectorPlan(repairedResult.text);
+          if (repairedPlan.characterBible && repairedPlan.scenes.length === requestedSceneCount) {
+            result = repairedResult;
+            dramaPlan = repairedPlan;
+          }
+        } catch (repairError) {
+          console.warn("[AI Office] Director normalization pass failed:", repairError);
+        }
+      }
+
       if (!dramaPlan.characterBible) {
         console.error("[AI Office] Director raw output missing character_bible:", result.text);
         return NextResponse.json(
@@ -153,7 +212,8 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             ok: false,
-            error: `Director returned ${dramaPlan.scenes.length} scenes, but exactly ${requestedSceneCount} were requested. Regenerate the director stage.`,
+            error: `Director returned ${dramaPlan.scenes.length} scenes, but exactly ${requestedSceneCount} were requested after normalization.`,
+            directorRawPreview: result.text.slice(0, 5000),
           },
           { status: 502 },
         );
