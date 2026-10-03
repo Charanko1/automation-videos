@@ -316,7 +316,7 @@ function looksLikeScene(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return Boolean(
-    asString(
+    asText(
       record.scene_id ??
         record.sceneId ??
         record.scene_number ??
@@ -332,7 +332,8 @@ function sceneCollection(value: unknown): unknown[] {
 
   if (!value || typeof value !== "object") return [];
 
-  return Object.values(value);
+  const values = Object.values(value);
+  return values.length > 0 && values.every(looksLikeScene) ? values : [];
 }
 
 function findSceneArray(parsedValues: unknown[]) {
@@ -349,22 +350,37 @@ function findSceneArray(parsedValues: unknown[]) {
   ];
 
   for (const value of parsedValues) {
-    const directWhole = sceneCollection(value);
-    if (directWhole.length > 0) return directWhole;
+    if (Array.isArray(value) && value.some(looksLikeScene)) {
+      return value;
+    }
+
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+
+    const record = value as Record<string, unknown>;
 
     for (const key of sceneKeys) {
-      const directValue =
-        value && typeof value === "object" && !Array.isArray(value)
-          ? (value as Record<string, unknown>)[key]
-          : undefined;
+      const directValue = record[key];
+      if (Array.isArray(directValue) && directValue.length > 0) {
+        return directValue;
+      }
 
       const directScenes = sceneCollection(directValue);
       if (directScenes.length > 0) return directScenes;
     }
 
-    const nested = deepFindByKey(value, ["scene"]);
+    if (looksLikeScene(value)) {
+      return [value];
+    }
+
+    const nestedSceneKeys = ["scene"];
+    const nested = deepFindByKey(value, nestedSceneKeys);
     const nestedScenes = sceneCollection(nested);
     if (nestedScenes.length > 0) return nestedScenes;
+
+    const keyedScenes = sceneCollection(value);
+    if (keyedScenes.length > 0) return keyedScenes;
   }
 
   return [];
