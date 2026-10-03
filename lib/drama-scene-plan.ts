@@ -310,8 +310,14 @@ function looksLikeScene(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return Boolean(
-    asString(record.scene_id ?? record.sceneId ?? record.id) &&
-      asString(record.visual_prompt_core ?? record.visual_prompt ?? record.visualPrompt),
+    asString(
+      record.scene_id ??
+        record.sceneId ??
+        record.scene_number ??
+        record.sceneNumber ??
+        record.id ??
+        record.number,
+    ),
   );
 }
 
@@ -398,10 +404,46 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
       if (!entry || typeof entry !== "object") return null;
 
       const scene = entry as Record<string, unknown>;
-      const sceneId = asString(scene.scene_id ?? scene.sceneId ?? scene.id);
-      const prompt = asString(scene.visual_prompt_core ?? scene.visual_prompt ?? scene.visualPrompt);
+      const rawSceneNumber = asString(
+        scene.scene_id ??
+          scene.sceneId ??
+          scene.scene_number ??
+          scene.sceneNumber ??
+          scene.id ??
+          scene.number,
+      );
+      const numericScene = Number.parseInt(rawSceneNumber, 10);
+      const sceneId =
+        rawSceneNumber && Number.isFinite(numericScene) && !rawSceneNumber.includes("-")
+          ? "S" + String(numericScene).padStart(3, "0")
+          : rawSceneNumber;
 
-      if (!sceneId || !prompt) return null;
+      const purpose = asString(scene.purpose ?? scene.scene_purpose ?? scene.scenePurpose);
+      const promptCore = asString(
+        scene.visual_prompt_core ??
+          scene.visual_prompt ??
+          scene.visualPrompt ??
+          scene.visual_description ??
+          scene.visualDescription,
+      );
+      const narrationExcerpt = asString(scene.narration_excerpt ?? scene.narrationExcerpt);
+      const environment = asString(scene.environment ?? scene.location);
+      const characterActions = asString(
+        scene.character_actions ?? scene.actions ?? scene.blocking,
+      );
+      const emotionalBeat = asString(scene.emotional_beat ?? scene.emotionalBeat ?? scene.emotion);
+
+      const prompt = promptCore || [
+        purpose ? "PURPOSE: " + purpose : "",
+        emotionalBeat ? "EMOTIONAL BEAT: " + emotionalBeat : "",
+        characterActions ? "CHARACTER ACTIONS: " + characterActions : "",
+        environment ? "ENVIRONMENT: " + environment : "",
+        narrationExcerpt ? "STORY BEAT: " + narrationExcerpt : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      if (!sceneId) return null;
 
       return {
         sceneId,
