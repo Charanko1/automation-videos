@@ -490,7 +490,10 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
             : undefined,
         emotionalBeat: asString(scene.emotional_beat ?? scene.emotionalBeat) || undefined,
         visualPrompt: buildVisualPrompt(prompt, scene),
-        cameraAndComposition: asString(scene.camera_and_composition ?? scene.camera) || undefined,
+        cameraAndComposition:
+          asString(scene.camera_and_composition ?? scene.camera) ||
+          "static locked-off shot, no zoom, no pan, no camera movement",
+        motion: asString(scene.motion ?? scene.motion_sequence ?? scene.motionSequence) || undefined,
         lightingAndColor: asString(scene.lighting_and_color ?? scene.lighting) || undefined,
         environment: asString(scene.environment ?? scene.location) || undefined,
         characterActions: asString(scene.character_actions ?? scene.actions ?? scene.blocking) || undefined,
