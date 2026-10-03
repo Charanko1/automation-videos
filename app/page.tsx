@@ -385,7 +385,13 @@ export default function Page() {
         const imageData = await imageResponse.json().catch(() => ({}));
 
         if (!imageResponse.ok || !imageData.ok) {
-          throw new Error(imageData.error ?? `Image generation failed for ${scenePlan.sceneId}.`);
+          const detail =
+            typeof imageData.error === "string" && imageData.error.trim()
+              ? imageData.error.trim()
+              : `HTTP ${imageResponse.status} ${imageResponse.statusText || ""}`.trim();
+          throw new Error(
+            detail || `Image generation failed for ${scenePlan.sceneId}.`,
+          );
         }
 
         generatedAssets.push({
