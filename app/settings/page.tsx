@@ -195,7 +195,7 @@ export default function SettingsPage() {
         {[
           ["OmniRoute · Free Provider Router","Primary AI gateway for story development, screenplay, and direction"],
           ["Gemi · 3D Character & Scene Artist","Vertical 9:16 preschool source keyframes; one location, one action, no collage"],
-          ["GPT · Video Artist","OmniRoute image-to-video stage; animates each Gemi keyframe using the Director timed-motion plan"],
+          ["GPT · Video Artist","Native Novita Kling v3.0 Standard I2V; animates each Gemi keyframe using the Director timed-motion plan"],
           ["Vox · Indonesian TTS","Windows Speech Synthesis using an installed id-ID voice; subtitles and spoken dialogue stay in Bahasa Indonesia"],
           ["YouTube","Publishing integration; not an AI provider"],
         ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "OmniRoute · Free Provider Router" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
