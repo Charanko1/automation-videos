@@ -1,5 +1,5 @@
 const DEFAULT_BASE_URL = "http://127.0.0.1:20128/v1";
-const DEFAULT_MODEL = "auto";
+const DEFAULT_MODEL = "auto/offline";
 
 type OmniRouteMessage = {
   role: "assistant";
@@ -118,7 +118,7 @@ async function findDirectFallbackModel(excludeModel?: string) {
     ) ??
     models.find(
       (candidate) =>
-        /^kr\\//i.test(candidate) &&
+        /^kr\//i.test(candidate) &&
         candidate !== excludeModel &&
         /claude|glm/i.test(candidate),
     ) ??
@@ -196,10 +196,16 @@ export async function generateWithOmniRoute(
     noCache?: boolean;
   },
 ): Promise<OmniRouteResult> {
-  const model =
+  const configuredModel =
     modelSlug?.trim() ||
     process.env.OMNIROUTE_MODEL?.trim() ||
     DEFAULT_MODEL;
+
+  // "auto/offline" prefers providers with more quota/rate-limit headroom.
+  // Normalize a legacy plain "auto" setting to that safer variant.
+  const model = /^auto$/i.test(configuredModel)
+    ? "auto/offline"
+    : configuredModel;
 
   try {
     return await generateOmniRouteOnce(prompt, model, options);
