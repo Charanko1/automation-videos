@@ -269,7 +269,6 @@ export async function renderLocalVideo(input: {
   script: string;
   director: string;
   model?: string;
-  imageAssets?: Array<{ assetUrl: string; sceneId?: string }>;
   videoAssets?: SceneVideoAsset[];
 }) {
   if (process.platform !== "win32") {
@@ -681,7 +680,6 @@ export async function renderLocalVideo(input: {
     scenes: plan.scenes.length,
     dialogueLines: dramaLines.length,
     speakers,
-    imageScenes: Array.isArray(input.imageAssets) ? input.imageAssets.length : 0,
     videoScenes: generatedVideoCount,
     note:
       "Local Kids Shorts assembly with Indonesian Windows Speech Synthesis, clean subtitles, static locked-off camera framing, and actual generated I2V scene videos from the GPT Video Artist stage.",
