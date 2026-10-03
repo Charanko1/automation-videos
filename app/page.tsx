@@ -12,7 +12,7 @@ const people = [
   { id: "rhea", name: "Rhea", role: "Story Researcher", provider: "OmniRoute · Free Provider Router", dept: "research", color: "#73a5ff" },
   { id: "wri", name: "Wri", role: "Screenwriter", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
-  { id: "gemi", name: "Gemi", role: "Image Artist", provider: "Cloudflare Workers AI", dept: "image", color: "#68dcae" },
+  { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "OmniRoute Image → Cloudflare fallback", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "Local FFmpeg · I2V-ready", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Dialogue Voice", provider: "Windows Speech Synthesis", dept: "tts", color: "#ff8b94" },
 ];
