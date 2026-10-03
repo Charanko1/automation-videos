@@ -186,7 +186,7 @@ export default function Page() {
       updateActiveProject({ status: "PRODUCING" });
 
       if (!researchText) {
-        setToast("Rhea is building the story world and character cast with OmniRoute.");
+        setToast("Rhea is building the story world and character cast with the ChatGPT plan brain.");
         updateActiveAI({ phase: "RESEARCH", error: undefined });
 
         const response = await fetch("/api/production/pipeline", {
