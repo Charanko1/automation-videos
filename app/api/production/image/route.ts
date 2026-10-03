@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const fullPrompt = [
       "You are Gemi, the Image Artist for AI Office.",
-      "Generate ONE production-ready 9:16 vertical cinematic frame from an ongoing character-driven drama scene for YouTube Shorts."
+      "Generate ONE production-ready 9:16 vertical cinematic frame from an ongoing character-driven drama scene for YouTube Shorts.",
       "Character consistency and acting continuity are mandatory.",
       "This frame must look like a shot from a 3D animated film, not concept art, poster art, or a documentary illustration.",
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
       "STYLE LOCK: cute polished 3D animated film frame, chibi/toy-like proportions, soft rounded geometry, expressive friendly faces, high-quality 3D materials, subtle depth of field, cinematic lighting, warm playful family-friendly mood, coherent art direction across all scenes.",
       "ACTING DIRECTION: show the named characters interacting, reacting, looking at each other, holding relevant props, and expressing the emotional beat implied by the scene.",
-      "CAMERA DIRECTION: stage the shot like a vertical animated short: medium shots, two-shots, over-the-shoulder, close-up, reaction shot, or motivated establishing shot. Keep faces, eye-lines, blocking, scale, and spatial relationships readable inside the 9:16 frame."
+      "CAMERA DIRECTION: stage the shot like a vertical animated short: medium shots, two-shots, over-the-shoulder, close-up, reaction shot, or motivated establishing shot. Keep faces, eye-lines, blocking, scale, and spatial relationships readable inside the 9:16 frame.",
       "CONTINUITY: preserve recurring character identity, costume, proportions, props, location, time of day, and emotional state from the supplied character bible and scene prompt.",
       "STRICTLY AVOID: comic book, manga, anime, 2D illustration, graphic novel, flat vector artwork, thick ink outlines, sketch, watercolor, photorealistic photography, horror, gritty realism, text overlays, captions, subtitles, logos, UI panels.",
     ].filter(Boolean).join("\n\n");
@@ -61,8 +61,8 @@ export async function POST(request: Request) {
       } catch (omniError) {
         result = await generateWithCloudflareImage({
           prompt: fullPrompt,
-          width: 1024,
-          height: 576,
+          width: 576,
+          height: 1024,
           numSteps: 4,
           imageBase64: referenceImageBase64 || undefined,
           negativePrompt,
@@ -76,8 +76,8 @@ export async function POST(request: Request) {
     } else {
       result = await generateWithCloudflareImage({
         prompt: fullPrompt,
-        width: 1024,
-        height: 576,
+        width: 576,
+        height: 1024,
         numSteps: 4,
         imageBase64: referenceImageBase64 || undefined,
         negativePrompt,
