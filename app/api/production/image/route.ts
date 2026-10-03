@@ -3,7 +3,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateWithCloudflareImage } from "../../../../lib/cloudflare-image";
 import { generateWithOmniRouteImage } from "../../../../lib/omniroute-image";
-import { GEMI_NEGATIVE_PROFILE, GEMI_VISUAL_PROFILE } from "../../../../lib/gemi-style";
+import {
+  GEMI_NEGATIVE_PROFILE,
+  GEMI_VISUAL_PROFILE,
+  KIDS_SHORTS_CHARACTER_LOCK,
+  KIDS_SHORTS_STYLE_LOCK,
+} from "../../../../lib/gemi-style";
 
 function safeSegment(value: string, fallback: string) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -26,13 +31,19 @@ export async function POST(request: Request) {
 
     const fullPrompt = [
       "You are Gemi, the Image Artist for AI Office.",
-      "Generate ONE production-ready 9:16 vertical cinematic frame from an ongoing character-driven drama scene for YouTube Shorts.",
-      "Character consistency and acting continuity are mandatory.",
+      "Generate ONE production-ready 9:16 vertical frame for a cheerful preschool YouTube Short for children ages 2-7.",
+      "Character consistency, age-appropriate acting, and playful animation are mandatory.",
       "This frame must look like a shot from a cute polished 3D animated film, not concept art, poster art, or a documentary illustration.",
+      KIDS_SHORTS_STYLE_LOCK,
+      KIDS_SHORTS_CHARACTER_LOCK,
       GEMI_VISUAL_PROFILE,
-      "The result should feel unmistakably cute and animated: rounded forms, adorable character design, expressive eyes, charming props, and polished cinematic 3D rendering.",
+      "The result must feel unmistakably cute and child-friendly: adorable rounded characters, big smiles, expressive eyes, simple colorful props, bright daylight, and polished 3D animation.",
+      "ONE-SCENE RULE: one location, one simple action, one clear subject. Avoid visual complexity.",
+      "SUBTITLE SAFE AREA: keep the bottom 20% of the image visually simple and mostly empty.",
+
       "KEYFRAME RULE: this is a frozen moment from an animated scene. Show the characters in the middle of a clear physical action or reaction. Do not pose them for a portrait.",
-      "ACTION REQUIREMENT: at least one visible body action must be obvious in the frame: reaching, turning, running, grabbing, pointing, opening, handing, hugging, stepping, recoiling, leaning, or reacting.",
+      "ACTION REQUIREMENT: show exactly one simple, age-appropriate visible action such as reaching, pointing, picking up, handing, cleaning, sharing, waving, jumping, stepping, hugging, or reacting.",
+      "Do not show danger, fear, sadness, injury, or aggressive conflict."
       "POSE REQUIREMENT: use natural weight shift, bent joints, asymmetry, gesture direction, and active eye-lines. Avoid straight symmetrical standing poses.",
 
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
@@ -58,7 +69,7 @@ export async function POST(request: Request) {
       "CHARACTER SCALE: avoid distant wide shots that make the cast tiny. Prefer medium, medium-wide, two-shot, over-the-shoulder, and close-up framing when dialogue or emotion is important. Keep at least one face and the key action large enough to read on a phone screen.",
       "CAMERA DIRECTION: stage the shot like a vertical animated short: medium shots, two-shots, over-the-shoulder, close-up, reaction shot, or motivated establishing shot. Keep faces, eye-lines, blocking, scale, and spatial relationships readable inside the 9:16 frame.",
       "CONTINUITY: preserve recurring character identity, costume, proportions, props, location, time of day, and emotional state from the supplied character bible and scene prompt.",
-      "STRICTLY AVOID: comic book, manga, anime, 2D illustration, graphic novel, flat vector artwork, thick ink outlines, sketch, watercolor, photorealistic photography, horror, gritty realism, text overlays, captions, subtitles, logos, UI panels.",
+      "STRICTLY AVOID: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scene, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, distorted hands, extra fingers, blurry, inconsistent character, stiff portrait poses.",
     ].filter(Boolean).join("\n\n");
 
     const omniImageModel = process.env.OMNIROUTE_IMAGE_MODEL?.trim();
