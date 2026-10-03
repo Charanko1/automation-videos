@@ -194,7 +194,7 @@ export default function SettingsPage() {
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
           ["OmniRoute · Free Provider Router","Primary AI gateway for story development, screenplay, and direction"],
-          ["Cloudflare Workers AI","Gemi image-generation stage for character keyframes and drama scenes"],
+          ["Gemi · 3D Character & Scene Artist","Vertical 9:16 cute 3D animation, character continuity, expressive acting, and scene keyframes"],
           ["Local renderer","Stage for character dialogue, clean subtitles, camera-aware motion, and final assembly"],
           ["YouTube","Publishing integration; not an AI provider"],
         ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "OmniRoute · Free Provider Router" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
