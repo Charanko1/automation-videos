@@ -90,7 +90,7 @@ The final renderer refuses to create a still-image slideshow for Kids Shorts. Ev
 
 ## Production integration boundary
 
-The UI is structured as a release candidate, but external provider execution is not implemented inside this repository yet. DeepSeek, image/video generation, TTS, and YouTube publishing must be connected through server-side adapters before production workloads can be executed or billed.
+The application now has server-side adapters for story generation, image generation, OmniRoute image-to-video scene generation, Windows Indonesian TTS, and local FFmpeg assembly. YouTube publishing remains outside the current execution path.
 
 Client-side pages do not fabricate provider costs or generated assets. Analytics shows only data that exists in the workspace.
 
