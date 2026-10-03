@@ -417,7 +417,7 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
   const rawScenes = findSceneArray(parsedValues);
 
   const scenes = rawScenes
-    .map((entry): AIProductionScene | null => {
+    .map((entry, index): AIProductionScene | null => {
       if (!entry || typeof entry !== "object") return null;
 
       const scene = entry as Record<string, unknown>;
@@ -433,7 +433,7 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
       const sceneId =
         rawSceneNumber && Number.isFinite(numericScene) && !rawSceneNumber.includes("-")
           ? "S" + String(numericScene).padStart(3, "0")
-          : rawSceneNumber;
+          : rawSceneNumber || "S" + String(index + 1).padStart(3, "0");
 
       const purpose = asString(scene.purpose ?? scene.scene_purpose ?? scene.scenePurpose);
       const promptCore = asString(
