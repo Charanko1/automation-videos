@@ -13,9 +13,9 @@ type TextBrainResult = {
 };
 
 async function generateWithPreferredBrain(prompt: string): Promise<TextBrainResult> {
-  const preferred = (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt");
+  const preferred = (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "omniroute");
 
-  if (preferred !== "omniroute") {
+  if (preferred === "chatgpt") {
     try {
       const result = await generateWithChatGPT(prompt);
       return { ...result, provider: "ChatGPT plan" };
@@ -27,8 +27,18 @@ async function generateWithPreferredBrain(prompt: string): Promise<TextBrainResu
     }
   }
 
-  const result = await generateWithOmniRoute(prompt);
-  return { ...result, provider: "OmniRoute" };
+  try {
+    const result = await generateWithOmniRoute(prompt);
+    return { ...result, provider: "OmniRoute" };
+  } catch (omniError) {
+    if (preferred !== "omniroute") throw omniError;
+    console.warn(
+      "[AI Office] OmniRoute brain unavailable; falling back to ChatGPT plan:",
+      omniError,
+    );
+    const result = await generateWithChatGPT(prompt);
+    return { ...result, provider: "ChatGPT plan" };
+  }
 }
 
 
@@ -152,7 +162,7 @@ export async function POST(request: Request) {
     }
     let result: TextBrainResult;
 
-    if (stage === "director" && (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt") === "omniroute") {
+    if (stage === "director" && (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "omniroute") === "omniroute") {
       try {
         const omniResult = await generateWithOmniRoute(prompt, undefined, {
           responseFormat: { type: "json_object" },
@@ -205,7 +215,7 @@ export async function POST(request: Request) {
 
         try {
           let repairedResult: TextBrainResult;
-          if ((process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt") === "omniroute") {
+          if ((process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "omniroute") === "omniroute") {
             const omniRepair = await generateWithOmniRoute(repairPrompt, undefined, {
               responseFormat: { type: "json_object" },
               noCache: true,
