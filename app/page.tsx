@@ -167,7 +167,12 @@ export default function Page() {
     setToast("Checking existing drama stages before spending another AI call…");
 
     const requestedSceneCount = Math.min(12, Math.max(6, activeProject.totalScenes));
-    const dramaArtifacts = activeProject.ai?.pipelineVersion === "drama-v2";
+    // This release prefers the refreshed ChatGPT plan brain. Projects created before
+    // this switch have no textProvider marker, so they are intentionally regenerated
+    // once instead of silently reusing OmniRoute-era artifacts.
+    const dramaArtifacts =
+      activeProject.ai?.pipelineVersion === "drama-v2" &&
+      activeProject.ai?.textProvider === "ChatGPT plan";
     let researchText = dramaArtifacts ? activeProject.ai?.research?.trim() ?? "" : "";
     let scriptText = dramaArtifacts ? activeProject.ai?.script?.trim() ?? "" : "";
     let directorText = dramaArtifacts ? activeProject.ai?.director?.trim() ?? "" : "";
@@ -207,6 +212,7 @@ export default function Page() {
           pipelineVersion: "drama-v2",
           research: researchText,
           model: data.model,
+          textProvider: data.provider === "ChatGPT plan" ? "ChatGPT plan" : "OmniRoute",
           error: undefined,
         });
       } else {
@@ -241,6 +247,7 @@ export default function Page() {
           pipelineVersion: "drama-v2",
           script: scriptText,
           model: data.model ?? activeProject.ai?.model,
+          textProvider: data.provider === "ChatGPT plan" ? "ChatGPT plan" : "OmniRoute",
           error: undefined,
         });
       } else {
@@ -405,6 +412,7 @@ export default function Page() {
         scenePlans: directorScenes,
         imageAssets: generatedAssets,
         model: activeProject.ai?.model,
+        textProvider: "ChatGPT plan",
         error: undefined,
       });
 
@@ -605,7 +613,7 @@ export default function Page() {
         </div>
 
         <div className="card"><div className="title"><Sparkles size={14}/> OmniRoute AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>OmniRoute handles Story → Screenplay → Director. Gemi then turns the actor blocking into cute 9:16 animated drama keyframes.</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT plan handles Story → Screenplay → Director first; OmniRoute remains the fallback brain. Gemi then turns the actor blocking into cute 9:16 animated drama keyframes.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
