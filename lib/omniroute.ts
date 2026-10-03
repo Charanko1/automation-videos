@@ -82,16 +82,58 @@ export async function checkOmniRoute(): Promise<{ modelCount: number; models: st
   return { modelCount: models.length, models };
 }
 
-export async function generateWithOmniRoute(
+function isComboRetryLimitError(status: number, message: string) {
+  return status === 503 && /maximum combo retry limit|combo retry limit reached/i.test(message);
+}
+
+async function findDirectFallbackModel(excludeModel?: string) {
+  const response = await requestOmniRoute("/models");
+  const data = await response.json().catch(() => ({})) as {
+    data?: Array<{ id?: string }>;
+    error?: { message?: string };
+  };
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error?.message ??
+        `OmniRoute models request failed (${response.status}).`,
+    );
+  }
+
+  const models = Array.isArray(data.data)
+    ? data.data
+        .map((item) => (typeof item?.id === "string" ? item.id.trim() : ""))
+        .filter(Boolean)
+    : [];
+
+  const preferred = [
+    "kr/claude-sonnet-4.5",
+    "kr/claude-haiku-4.5",
+    "kr/glm-5",
+  ];
+
+  return (
+    preferred.find(
+      (candidate) => models.includes(candidate) && candidate !== excludeModel,
+    ) ??
+    models.find(
+      (candidate) =>
+        /^kr\\//i.test(candidate) &&
+        candidate !== excludeModel &&
+        /claude|glm/i.test(candidate),
+    ) ??
+    null
+  );
+}
+
+async function generateOmniRouteOnce(
   prompt: string,
-  modelSlug?: string,
+  model: string,
   options?: {
     responseFormat?: Record<string, unknown>;
     noCache?: boolean;
   },
 ): Promise<OmniRouteResult> {
-  const model = modelSlug?.trim() || process.env.OMNIROUTE_MODEL?.trim() || DEFAULT_MODEL;
-
   const body: Record<string, unknown> = {
     model,
     messages: [{ role: "user", content: prompt }],
@@ -118,23 +160,78 @@ export async function generateWithOmniRoute(
   };
 
   if (!response.ok) {
-    const providerMessage = data?.error?.message ?? `OmniRoute request failed (${response.status}).`;
+    const providerMessage =
+      data?.error?.message ??
+      `OmniRoute request failed (${response.status}).`;
     if (response.status === 429) {
       throw new Error(`OmniRoute rate limit: ${providerMessage}`);
     }
-    throw new Error(providerMessage);
+    const error = new Error(providerMessage);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
 
   const text = extractContent(data?.choices?.[0]?.message?.content).trim();
   if (!text) {
-    throw new Error("OmniRoute returned an empty response. Check that at least one provider is connected.");
+    throw new Error(
+      "OmniRoute returned an empty response. Check that at least one provider is connected.",
+    );
   }
 
-  const resolvedModel = typeof data.model === "string" && data.model.trim() ? data.model.trim() : model;
+  const resolvedModel =
+    typeof data.model === "string" && data.model.trim() ? data.model.trim() : model;
 
   return {
     text,
     model: resolvedModel,
     displayName: `OmniRoute · ${resolvedModel}`,
   };
+}
+
+export async function generateWithOmniRoute(
+  prompt: string,
+  modelSlug?: string,
+  options?: {
+    responseFormat?: Record<string, unknown>;
+    noCache?: boolean;
+  },
+): Promise<OmniRouteResult> {
+  const model =
+    modelSlug?.trim() ||
+    process.env.OMNIROUTE_MODEL?.trim() ||
+    DEFAULT_MODEL;
+
+  try {
+    return await generateOmniRouteOnce(prompt, model, options);
+  } catch (error) {
+    const status = Number((error as Error & { status?: number })?.status ?? 0);
+    const message = error instanceof Error ? error.message : String(error);
+
+    // OmniRoute's auto/combos can exhaust their retry budget when an upstream
+    // free account is rate-limited or unavailable. When that happens, bypass
+    // the combo and call a healthy directly-addressable Kiro model if one is
+    // exposed by this OmniRoute instance.
+    if (isComboRetryLimitError(status, message) && /^auto(?:\\/|$)/i.test(model)) {
+      try {
+        const directModel =
+          process.env.OMNIROUTE_DIRECT_FALLBACK_MODEL?.trim() ||
+          (await findDirectFallbackModel(model));
+
+        if (directModel) {
+          console.warn(
+            `[AI Office] OmniRoute ${model} exhausted its combo retry budget; retrying direct model ${directModel}.`,
+          );
+          return await generateOmniRouteOnce(prompt, directModel, options);
+        }
+      } catch (fallbackError) {
+        const fallbackMessage =
+          fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new Error(
+          `OmniRoute combo failed: ${message}. Direct-model fallback also failed: ${fallbackMessage}`,
+        );
+      }
+    }
+
+    throw error;
+  }
 }
