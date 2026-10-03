@@ -171,7 +171,7 @@ export default function Page() {
     // this switch have no textProvider marker, so they are intentionally regenerated
     // once instead of silently reusing OmniRoute-era artifacts.
     const kidsArtifacts =
-      activeProject.ai?.pipelineVersion === "drama-v2" &&
+      activeProject.ai?.pipelineVersion === "kids-shorts-v1" &&
       activeProject.ai?.textProvider === "ChatGPT plan";
     let researchText = kidsArtifacts ? activeProject.ai?.research?.trim() ?? "" : "";
     let scriptText = kidsArtifacts ? activeProject.ai?.script?.trim() ?? "" : "";
@@ -439,7 +439,7 @@ export default function Page() {
   const renderFinalVideo = async () => {
     if (!activeProject?.ai?.script || !activeProject.ai.director || rendering) return;
     setRendering(true);
-    setToast("Vox · Indonesian id-ID TTS + FFmpeg is assembling the drama…");
+    setToast("Vox · Indonesian id-ID TTS + FFmpeg is assembling the Kids Short…");
     updateActiveAI({ render: { status: "RENDERING", error: undefined } });
 
     try {
@@ -497,7 +497,7 @@ export default function Page() {
     updateActiveProject({ status: "PRODUCING" });
     setRunning(true);
     setResting(false);
-    setToast("Production started after the OmniRoute drama pipeline.");
+    setToast("Production started after the Kids Shorts pipeline.");
   };
 
   const toggleRest = () => {
@@ -550,7 +550,7 @@ export default function Page() {
       if (person.dept === "image" && aiPhase === "IMAGES") {
         const count = activeProject?.ai?.imageAssets?.length ?? 0;
         const total = activeProject?.totalScenes ?? 0;
-        return total ? `Generating 9:16 drama keyframes · ${count}/${total}` : "Generating 9:16 drama keyframes";
+        return total ? `Generating kids 9:16 keyframes · ${count}/${total}` : "Generating 9:16 drama keyframes";
       }
       return "Standing by";
     }
@@ -587,7 +587,7 @@ export default function Page() {
         })}
         <Link className="hire" href="/projects">+ Create Project</Link>
         <div className="card"><div className="mini">Active project</div><div className="projectName">{activeProject?.title ?? "No active project"}</div><div className="muted">{activeProject ? `${activeProject.type} · ${activeProject.totalScenes} scenes` : "Create a project to start production."}</div><div className="prog"><i style={{width:`${pct}%`}}/></div><div className="projectFoot"><span>Scene {scene}/{totalScenes}</span><b>{pct}%</b></div></div>
-        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "KIDS SHORTS PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. OmniRoute handles story development, screenplay, and direction; Gemi generates cinematic character keyframes for the drama."}</div></div>
+        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "KIDS SHORTS PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. ChatGPT plan handles the kids story pipeline, with OmniRoute as fallback; Gemi generates cheerful 9:16 character keyframes."}</div></div>
       </aside>
 
       <section className="world">
@@ -613,7 +613,7 @@ export default function Page() {
         </div>
 
         <div className="card"><div className="title"><Sparkles size={14}/> OmniRoute AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT plan handles Story → Screenplay → Director first; OmniRoute remains the fallback brain. Gemi then turns the actor blocking into cute 9:16 animated drama keyframes.</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT plan handles Story → Screenplay → Director first; OmniRoute remains the fallback brain. Gemi then turns the storyboard into bright 9:16 animated kids keyframes.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
@@ -624,11 +624,11 @@ export default function Page() {
           <div className="title"><Bot size={14}/> AI Artifacts</div>
           <details><summary className="mini">Research brief</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:220,overflow:"auto"}}>{activeProject.ai.research}</div></details>
           <details style={{marginTop:8}}><summary className="mini">Script</summary><div className="notice" style={{marginTop:8,whiteSpace:"pre-wrap",maxHeight:260,overflow:"auto"}}>{activeProject.ai.script}</div></details>
-          <details style={{marginTop:8}}><summary className="mini">Director scene plan · drama</summary>
+          <details style={{marginTop:8}}><summary className="mini">Director scene plan · Kids Shorts</summary>
             <div className="notice" style={{marginTop:8,maxHeight:360,overflow:"auto"}}>
               {(activeProject.ai.scenePlans ?? []).map((scenePlan) => (
                 <div key={scenePlan.sceneId} style={{padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
-                  <div style={{fontWeight:800,fontSize:11}}>{scenePlan.sceneId} · {scenePlan.emotionalBeat ?? "dramatic beat"}</div>
+                  <div style={{fontWeight:800,fontSize:11}}>{scenePlan.sceneId} · {scenePlan.emotionalBeat ?? "kid-friendly beat"}</div>
                   <div className="muted" style={{fontSize:10,marginTop:4}}>{scenePlan.charactersPresent?.join(" + ") || "characters pending"} · {scenePlan.cameraAndComposition ?? "shot unspecified"}</div>
                   {(scenePlan.dialogue ?? []).map((line, lineIndex) => (
                     <div key={lineIndex} style={{marginTop:6,fontSize:11}}>
