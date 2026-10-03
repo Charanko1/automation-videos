@@ -89,8 +89,7 @@ export async function POST(request: Request) {
     const errors: string[] = [];
 
     // ChatGPT subscription-sharing tokens cannot call the public image_generation tool.
-    // Keep the explicit "chatgpt" mode for diagnostics, but do not waste time retrying it
-    // during normal "auto" routing. Auto starts with OmniRoute image generation, then Cloudflare.
+    // Gemi keeps Cloudflare as the primary image provider, with OmniRoute as an optional fallback.
     if (imageProvider === "chatgpt") {
       try {
         const chatgptResult = await generateWithChatGPTImage(fullPrompt);
@@ -104,6 +103,24 @@ export async function POST(request: Request) {
         const message = chatgptError instanceof Error ? chatgptError.message : String(chatgptError);
         errors.push("ChatGPT: " + message);
         console.warn("[AI Office] ChatGPT image generation failed:", message);
+      }
+    }
+
+    if (!result && (imageProvider === "cloudflare" || imageProvider === "auto" || imageProvider === "omniroute")) {
+      try {
+        result = await generateWithCloudflareImage({
+          prompt: fullPrompt,
+          width: 576,
+          height: 1024,
+          numSteps: 4,
+          imageBase64: referenceImageBase64 || undefined,
+          negativePrompt,
+        });
+        provider = "Cloudflare Workers AI";
+      } catch (cloudflareError) {
+        const message = cloudflareError instanceof Error ? cloudflareError.message : String(cloudflareError);
+        errors.push("Cloudflare: " + message);
+        console.warn("[AI Office] Cloudflare image generation failed:", message);
       }
     }
 
