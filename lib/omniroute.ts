@@ -217,7 +217,7 @@ export async function generateWithOmniRoute(
     // free account is rate-limited or unavailable. When that happens, bypass
     // the combo and call a healthy directly-addressable Kiro model if one is
     // exposed by this OmniRoute instance.
-    if (isComboRetryLimitError(status, message) && /^auto(?:\\/|$)/i.test(model)) {
+    if (isComboRetryLimitError(status, message) && model.toLowerCase().startsWith("auto")) {
       try {
         const directModel =
           process.env.OMNIROUTE_DIRECT_FALLBACK_MODEL?.trim() ||
