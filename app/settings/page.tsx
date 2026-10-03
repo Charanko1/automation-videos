@@ -43,7 +43,7 @@ export default function SettingsPage() {
       settings: {
         dailyCeiling: Math.max(0, Math.round(form.dailyCeiling)),
         targetVideos: Math.max(1, Math.round(form.targetVideos)),
-        scenesPerVideo: Math.max(1, Math.min(500, Math.round(form.scenesPerVideo))),
+        scenesPerVideo: Math.max(5, Math.min(8, Math.round(form.scenesPerVideo))),
         maxBreaks: Math.max(1, Math.min(6, Math.round(form.maxBreaks))),
       },
     };
@@ -134,7 +134,7 @@ export default function SettingsPage() {
       <div className="card"><div className="title"><SlidersHorizontal size={14}/> PRODUCTION SETTINGS</div>
         <label className="setting-label"><span className="mini">Daily budget ceiling (IDR)</span><input type="number" min="0" value={form.dailyCeiling} onChange={(e) => update("dailyCeiling", Number(e.target.value))} /></label>
         <label className="setting-label"><span className="mini">Target completed projects / day</span><input type="number" min="1" value={form.targetVideos} onChange={(e) => update("targetVideos", Number(e.target.value))} /></label>
-        <label className="setting-label"><span className="mini">Scenes per project</span><input type="number" min="1" max="500" value={form.scenesPerVideo} onChange={(e) => update("scenesPerVideo", Number(e.target.value))} /></label>
+        <label className="setting-label"><span className="mini">Scenes per project (5–8)</span><input type="number" min="5" max="8" value={form.scenesPerVideo} onChange={(e) => update("scenesPerVideo", Number(e.target.value))} /></label>
         <label className="setting-label"><span className="mini">Maximum concurrent break workers</span><input type="number" min="1" max="6" value={form.maxBreaks} onChange={(e) => update("maxBreaks", Number(e.target.value))} /></label>
         <button className="ctrl green compact" onClick={save}><Save size={14}/> {saved ? "Settings Saved" : "Save Settings"}</button>
       </div>
