@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { generateWithChatGPTImage } from "../../../../lib/chatgpt-image";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateWithCloudflareImage } from "../../../../lib/cloudflare-image";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
 
       "KEYFRAME RULE: this is a frozen moment from an animated scene. Show the characters in the middle of a clear physical action or reaction. Do not pose them for a portrait.",
       "ACTION REQUIREMENT: show exactly one simple, age-appropriate visible action such as reaching, pointing, picking up, handing, cleaning, sharing, waving, jumping, stepping, hugging, or reacting.",
-      "Do not show danger, fear, sadness, injury, or aggressive conflict."
+      "Do not show danger, fear, sadness, injury, or aggressive conflict.",
       "POSE REQUIREMENT: use natural weight shift, bent joints, asymmetry, gesture direction, and active eye-lines. Avoid straight symmetrical standing poses.",
 
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
@@ -72,24 +73,52 @@ export async function POST(request: Request) {
       "STRICTLY AVOID: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scene, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, distorted hands, extra fingers, blurry, inconsistent character, stiff portrait poses.",
     ].filter(Boolean).join("\n\n");
 
+    const imageProvider = process.env.AI_OFFICE_IMAGE_PROVIDER?.trim().toLowerCase() || "chatgpt";
     const omniImageModel = process.env.OMNIROUTE_IMAGE_MODEL?.trim();
-    const useOmniRoute = Boolean(omniImageModel) && !referenceImageBase64;
-
     const negativePrompt = process.env.GEMI_IMAGE_NEGATIVE_PROMPT?.trim() || GEMI_NEGATIVE_PROFILE;
 
-    let result: { imageBase64: string; mimeType: string; model: string };
-    let provider: "OmniRoute" | "Cloudflare Workers AI";
+    let result: { imageBase64: string; mimeType: string; model: string } | null = null;
+    let provider: "ChatGPT plan" | "OmniRoute" | "Cloudflare Workers AI" = "Cloudflare Workers AI";
+    const errors: string[] = [];
 
-    if (useOmniRoute) {
+    if (imageProvider === "chatgpt" || imageProvider === "auto") {
       try {
-        result = await generateWithOmniRouteImage({
-          prompt: fullPrompt,
-          width: 576,
-          height: 1024,
-          model: omniImageModel,
-        });
-        provider = "OmniRoute";
-      } catch (omniError) {
+        const chatgptResult = await generateWithChatGPTImage(fullPrompt);
+        result = {
+          imageBase64: chatgptResult.imageBase64,
+          mimeType: chatgptResult.mimeType,
+          model: chatgptResult.model,
+        };
+        provider = "ChatGPT plan";
+      } catch (chatgptError) {
+        const message = chatgptError instanceof Error ? chatgptError.message : String(chatgptError);
+        errors.push("ChatGPT: " + message);
+        console.warn("[AI Office] ChatGPT image generation failed:", message);
+      }
+    }
+
+    if (!result && (imageProvider === "omniroute" || imageProvider === "auto")) {
+      if (!omniImageModel) {
+        errors.push("OmniRoute: OMNIROUTE_IMAGE_MODEL is not configured.");
+      } else {
+        try {
+          result = await generateWithOmniRouteImage({
+            prompt: fullPrompt,
+            width: 576,
+            height: 1024,
+            model: omniImageModel,
+          });
+          provider = "OmniRoute";
+        } catch (omniError) {
+          const message = omniError instanceof Error ? omniError.message : String(omniError);
+          errors.push("OmniRoute: " + message);
+          console.warn("[AI Office] OmniRoute image generation failed:", message);
+        }
+      }
+    }
+
+    if (!result) {
+      try {
         result = await generateWithCloudflareImage({
           prompt: fullPrompt,
           width: 576,
@@ -99,21 +128,14 @@ export async function POST(request: Request) {
           negativePrompt,
         });
         provider = "Cloudflare Workers AI";
-        console.warn(
-          "OmniRoute image generation failed; Cloudflare fallback used:",
-          omniError instanceof Error ? omniError.message : omniError,
-        );
+      } catch (cloudflareError) {
+        const message = cloudflareError instanceof Error ? cloudflareError.message : String(cloudflareError);
+        errors.push("Cloudflare: " + message);
       }
-    } else {
-      result = await generateWithCloudflareImage({
-        prompt: fullPrompt,
-        width: 576,
-        height: 1024,
-        numSteps: 4,
-        imageBase64: referenceImageBase64 || undefined,
-        negativePrompt,
-      });
-      provider = "Cloudflare Workers AI";
+    }
+
+    if (!result) {
+      throw new Error("All image providers failed for " + sceneId + ". " + errors.join(" | "));
     }
 
     const projectSlug = safeSegment(projectId, "project");
