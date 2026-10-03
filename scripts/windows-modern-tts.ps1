@@ -21,15 +21,23 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 [void][Windows.Storage.Streams.IBuffer, Windows.Storage.Streams, ContentType=WindowsRuntime]
 [void][Windows.Storage.Streams.InputStreamOptions, Windows.Storage.Streams, ContentType=WindowsRuntime]
 
-$_taskMethods = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+$_taskMethods = @([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
   $_.Name -eq "AsTask" -and $_.GetParameters().Count -eq 1
-}
-$asTaskGeneric = ($_taskMethods | Where-Object {
+})
+
+$asTaskGeneric = @($_taskMethods | Where-Object {
+  $_.IsGenericMethodDefinition -and
   $_.GetParameters()[0].ParameterType.Name -eq "IAsyncOperation`1"
-})[0]
-$asTaskGeneric2 = ($_taskMethods | Where-Object {
+}) | Select-Object -First 1
+
+$asTaskGeneric2 = @($_taskMethods | Where-Object {
+  $_.IsGenericMethodDefinition -and
   $_.GetParameters()[0].ParameterType.Name -eq "IAsyncOperationWithProgress`2"
-})[0]
+}) | Select-Object -First 1
+
+if (-not $asTaskGeneric) {
+  throw "WindowsRuntimeSystemExtensions.AsTask(IAsyncOperation<TResult>) was not found."
+}
 
 function Await-WinRtOperation($WinRtTask, $ResultType) {
   $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
@@ -39,6 +47,9 @@ function Await-WinRtOperation($WinRtTask, $ResultType) {
 }
 
 function Await-WinRtOperationWithProgress($WinRtTask, $ResultType1, $ResultType2) {
+  if (-not $asTaskGeneric2) {
+    throw "WindowsRuntimeSystemExtensions.AsTask(IAsyncOperationWithProgress<TResult,TProgress>) was not found."
+  }
   $asTask = $asTaskGeneric2.MakeGenericMethod($ResultType1, $ResultType2)
   $netTask = $asTask.Invoke($null, @($WinRtTask))
   $netTask.Wait(-1) | Out-Null
@@ -136,8 +147,12 @@ foreach ($item in $items) {
       throw "Speech synthesis returned an empty stream for dialogue line $index."
     }
 
-    $bytes = [array]::CreateInstance([byte], $size)
+    $bytes = New-Object byte[] $size
     $buffer = [System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions]::AsBuffer($bytes)
+
+    if (-not $buffer) {
+      throw "Could not create a WinRT buffer for dialogue line $index."
+    }
 
     Await-WinRtOperationWithProgress (
       $stream.ReadAsync(
