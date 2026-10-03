@@ -9,9 +9,9 @@ import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type AIProduction, type
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
 const people = [
-  { id: "rhea", name: "Rhea", role: "Story Researcher", provider: "OmniRoute · Free Provider Router", dept: "research", color: "#73a5ff" },
-  { id: "wri", name: "Wri", role: "Screenwriter", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
-  { id: "dira", name: "Dira", role: "Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
+  { id: "rhea", name: "Rhea", role: "Kids Story Designer", provider: "OmniRoute · Free Provider Router", dept: "research", color: "#73a5ff" },
+  { id: "wri", name: "Wri", role: "Kids Storyboard Writer", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
+  { id: "dira", name: "Dira", role: "Kids Prompt Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "OmniRoute Image → Cloudflare fallback", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "Local FFmpeg · I2V-ready", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Indonesian Dialogue Voice", provider: "Windows Speech Synthesis · id-ID", dept: "tts", color: "#ff8b94" },
