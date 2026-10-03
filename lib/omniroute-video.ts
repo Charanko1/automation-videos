@@ -209,8 +209,6 @@ export async function generateWithOmniRouteVideo(
       height: 1280,
       sound: false,
       response_format: "url",
-      // Prevent provider/gateway cache layers from serving an old signed URL.
-      cache: false,
     }),
   });
 
