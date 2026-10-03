@@ -32,18 +32,21 @@ export async function POST(request: Request) {
 
     const fullPrompt = [
       "You are Gemi, the Image Artist for AI Office.",
-      "Generate ONE production-ready 9:16 vertical frame for a cheerful preschool YouTube Short for children ages 2-7.",
-      "Character consistency, age-appropriate acting, and playful animation are mandatory.",
-      "This frame must look like a shot from a cute polished 3D animated film, not concept art, poster art, or a documentary illustration.",
+      "Generate ONE complete full-frame 9:16 image for a cheerful preschool YouTube Short for children ages 2-7.",
+      "Character consistency, age-appropriate acting, and playful body motion are mandatory.",
+      "This is ONE standalone animation keyframe, not a collage, split screen, montage, or storyboard sheet."
       KIDS_SHORTS_STYLE_LOCK,
       KIDS_SHORTS_CHARACTER_LOCK,
       GEMI_VISUAL_PROFILE,
       "The result must feel unmistakably cute and child-friendly: adorable rounded characters, big smiles, expressive eyes, simple colorful props, bright daylight, and polished 3D animation.",
       "ONE-SCENE RULE: one location, one simple action, one clear subject. Avoid visual complexity.",
       "SUBTITLE SAFE AREA: keep the bottom 20% of the image visually simple and mostly empty.",
+      "CAMERA RULE: static locked-off shot, no zoom, no pan, no camera movement.",
+      "ALL MOTION COMES FROM CHARACTERS: do not animate or imply camera movement.",
+      "ONE IMAGE RULE: full-frame single image only, never split screen, collage, montage, or multiple panels.",
 
-      "KEYFRAME RULE: this is a frozen moment from an animated scene. Show the characters in the middle of a clear physical action or reaction. Do not pose them for a portrait.",
-      "ACTION REQUIREMENT: show exactly one simple, age-appropriate visible action such as reaching, pointing, picking up, handing, cleaning, sharing, waving, jumping, stepping, hugging, or reacting.",
+      "KEYFRAME RULE: freeze an expressive moment from the middle of a character action. The starting state must already be active at time 0, not a neutral pose.",
+      "ACTION REQUIREMENT: show exactly one simple, age-appropriate physical action, with visible arms/hands/legs/body movement such as reaching, pointing, picking up, handing, cleaning, sharing, waving, jumping, stepping, hugging, clapping, or dancing.",
       "Do not show danger, fear, sadness, injury, or aggressive conflict.",
       "POSE REQUIREMENT: use natural weight shift, bent joints, asymmetry, gesture direction, and active eye-lines. Avoid straight symmetrical standing poses.",
 
@@ -64,13 +67,17 @@ export async function POST(request: Request) {
       typeof body?.characterActions === "string" && body.characterActions.trim()
         ? "DIRECTOR ACTING: " + body.characterActions.trim()
         : "",
+      typeof body?.motion === "string" && body.motion.trim()
+        ? "TIMED CHARACTER MOTION: " + body.motion.trim()
+        : "",
+      "CAMERA: static locked-off shot, no zoom, no pan, no camera movement.",
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
       "STYLE LOCK: " + GEMI_VISUAL_PROFILE,
       "ACTING DIRECTION: show the named characters interacting, reacting, looking at each other, holding relevant props, and expressing the emotional beat implied by the scene. Make emotions visually obvious and charming rather than stiff or neutral. Capture a mid-action instant with body movement, gesture, and reaction all readable at once.",
       "CHARACTER SCALE: avoid distant wide shots that make the cast tiny. Prefer medium, medium-wide, two-shot, over-the-shoulder, and close-up framing when dialogue or emotion is important. Keep at least one face and the key action large enough to read on a phone screen.",
-      "CAMERA DIRECTION: stage the shot like a vertical animated short: medium shots, two-shots, over-the-shoulder, close-up, reaction shot, or motivated establishing shot. Keep faces, eye-lines, blocking, scale, and spatial relationships readable inside the 9:16 frame.",
+      "CAMERA DIRECTION: use a static locked-off composition only. No zoom, no pan, no tracking, no camera movement. Keep faces, eye-lines, blocking, scale, and spatial relationships readable inside the 9:16 frame.",
       "CONTINUITY: preserve recurring character identity, costume, proportions, props, location, time of day, and emotional state from the supplied character bible and scene prompt.",
-      "STRICTLY AVOID: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scene, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, distorted hands, extra fingers, blurry, inconsistent character, stiff portrait poses.",
+      "STRICTLY AVOID: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scene, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, distorted hands, extra fingers, blurry, inconsistent character, static pose, standing still, frozen, stiff, camera zoom, camera pan, camera movement, tracking shot, dolly shot, slideshow, split screen, collage.",
     ].filter(Boolean).join("\n\n");
 
     const imageProvider = process.env.AI_OFFICE_IMAGE_PROVIDER?.trim().toLowerCase() || "chatgpt";
