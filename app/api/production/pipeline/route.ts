@@ -160,14 +160,16 @@ export async function POST(request: Request) {
 
       const dialogueLineCount = dramaPlan.scenes.reduce((count, scene) => count + (scene.dialogue?.length ?? 0), 0);
       const silentScenes = dramaPlan.scenes.filter((scene) => (scene.dialogue?.length ?? 0) === 0);
+      const missingDialogueSceneIds = silentScenes.map((scene) => scene.sceneId);
       if (dialogueLineCount === 0 || silentScenes.length > 0) {
         return NextResponse.json(
           {
             ok: false,
             error:
               silentScenes.length > 0
-                ? `Director returned ${silentScenes.length} scene(s) without dialogue. Every scene must have at least one character line for this production pass.`
-                : "Director returned no dialogue lines. Regenerate the director stage with character dialogue.",
+                ? `Director returned ${silentScenes.length} scene(s) without parseable dialogue (${missingDialogueSceneIds.join(", ")}). The parser now accepts array, object, and speaker: line dialogue formats; regenerate the Director stage if the scene is genuinely silent.`
+                : "Director returned no parseable dialogue lines. Regenerate the director stage with character dialogue.",
+            silentSceneIds: missingDialogueSceneIds,
           },
           { status: 502 },
         );
