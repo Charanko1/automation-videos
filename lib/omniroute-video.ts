@@ -55,6 +55,11 @@ async function requestOmniRoute(path: string, init: RequestInit = {}) {
   headers.set("Authorization", `Bearer ${apiKey}`);
   headers.set("Content-Type", "application/json");
 
+  // Video providers such as Novita return short-lived signed URLs. Never let
+  // OmniRoute's media cache reuse an old signed URL for an identical scene.
+  headers.set("X-OmniRoute-No-Cache", "true");
+  headers.set("Cache-Control", "no-store");
+
   let lastError: unknown;
 
   for (const candidate of candidates) {
@@ -204,6 +209,8 @@ export async function generateWithOmniRouteVideo(
       height: 1280,
       sound: false,
       response_format: "url",
+      // Prevent provider/gateway cache layers from serving an old signed URL.
+      cache: false,
     }),
   });
 
