@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateWithCloudflareImage } from "../../../../lib/cloudflare-image";
 import { generateWithOmniRouteImage } from "../../../../lib/omniroute-image";
+import { GEMI_NEGATIVE_PROFILE, GEMI_VISUAL_PROFILE } from "../../../../lib/gemi-style";
 
 function safeSegment(value: string, fallback: string) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -27,12 +28,15 @@ export async function POST(request: Request) {
       "You are Gemi, the Image Artist for AI Office.",
       "Generate ONE production-ready 9:16 vertical cinematic frame from an ongoing character-driven drama scene for YouTube Shorts.",
       "Character consistency and acting continuity are mandatory.",
-      "This frame must look like a shot from a 3D animated film, not concept art, poster art, or a documentary illustration.",
+      "This frame must look like a shot from a cute polished 3D animated film, not concept art, poster art, or a documentary illustration.",
+      GEMI_VISUAL_PROFILE,
+      "The result should feel unmistakably cute and animated: rounded forms, adorable character design, expressive eyes, charming props, and polished cinematic 3D rendering.",
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
       "SCENE PROMPT:\n" + prompt,
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
       "STYLE LOCK: cute polished 3D animated film frame, chibi/toy-like proportions, soft rounded geometry, expressive friendly faces, high-quality 3D materials, subtle depth of field, cinematic lighting, warm playful family-friendly mood, coherent art direction across all scenes.",
-      "ACTING DIRECTION: show the named characters interacting, reacting, looking at each other, holding relevant props, and expressing the emotional beat implied by the scene.",
+      "ACTING DIRECTION: show the named characters interacting, reacting, looking at each other, holding relevant props, and expressing the emotional beat implied by the scene. Make emotions visually obvious and charming rather than stiff or neutral.",
+      "CHARACTER SCALE: avoid distant wide shots that make the cast tiny. Prefer medium, medium-wide, two-shot, over-the-shoulder, and close-up framing when dialogue or emotion is important.",
       "CAMERA DIRECTION: stage the shot like a vertical animated short: medium shots, two-shots, over-the-shoulder, close-up, reaction shot, or motivated establishing shot. Keep faces, eye-lines, blocking, scale, and spatial relationships readable inside the 9:16 frame.",
       "CONTINUITY: preserve recurring character identity, costume, proportions, props, location, time of day, and emotional state from the supplied character bible and scene prompt.",
       "STRICTLY AVOID: comic book, manga, anime, 2D illustration, graphic novel, flat vector artwork, thick ink outlines, sketch, watercolor, photorealistic photography, horror, gritty realism, text overlays, captions, subtitles, logos, UI panels.",
@@ -41,10 +45,7 @@ export async function POST(request: Request) {
     const omniImageModel = process.env.OMNIROUTE_IMAGE_MODEL?.trim();
     const useOmniRoute = Boolean(omniImageModel) && !referenceImageBase64;
 
-    const negativePrompt = process.env.GEMI_IMAGE_NEGATIVE_PROMPT?.trim() || [
-      "comic book", "manga", "anime", "2D illustration", "graphic novel", "flat vector art", "thick ink outlines",
-      "sketch", "watercolor", "photorealistic", "gritty realism", "horror", "text", "subtitles", "captions", "logos", "UI"
-    ].join(", ");
+    const negativePrompt = process.env.GEMI_IMAGE_NEGATIVE_PROMPT?.trim() || GEMI_NEGATIVE_PROFILE;
 
     let result: { imageBase64: string; mimeType: string; model: string };
     let provider: "OmniRoute" | "Cloudflare Workers AI";
