@@ -26,7 +26,7 @@ export type OmniRouteVideoResult = {
 };
 
 function normalizeBaseUrl(value: string) {
-  return value.trim().replace(/\\+$/, "");
+  return value.trim().replace(/\/+$/, "");
 }
 
 async function requestOmniRoute(path: string, init: RequestInit = {}) {
