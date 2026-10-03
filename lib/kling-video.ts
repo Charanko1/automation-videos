@@ -47,9 +47,14 @@ async function getKlingToken() {
     );
   }
 
-  // Kling's current API requires API Key authentication. Do not fall back to
-  // legacy AccessKey/SecretKey credentials because the current API rejects
-  // AK/SK authentication.
+  // Kling's current API requires a raw API Key. Do not use a JWT created
+  // from legacy AccessKey/SecretKey credentials.
+  if (apiKey.split(".").length === 3) {
+    throw new Error(
+      "KLING_API_KEY looks like a JWT/AK-SK token. Create a new API Key in the Kling Developer Console at https://kling.ai/dev/api-key and put that raw key in KLING_API_KEY.",
+    );
+  }
+
   return apiKey;
 }
 async function klingFetch(path: string, init: RequestInit = {}) {
