@@ -110,6 +110,24 @@ function chunkText(text: string, maxChars = 120) {
   return chunks;
 }
 
+function wrapSubtitleText(text: string, maxChars = 30) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? current + " " + word : word;
+    if (current && next.length > maxChars) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines.join("\\N");
+}
 function formatSrtTime(seconds: number) {
   const safe = Math.max(0, seconds);
   const hours = Math.floor(safe / 3600);
@@ -502,7 +520,7 @@ export async function renderLocalVideo(input: {
         " --> " +
         formatSrtTime(cue.end) +
         "\n" +
-        cue.text +
+        wrapSubtitleText(cue.text, 30) +
         "\n",
     )
     .join("\n");
@@ -662,7 +680,7 @@ export async function renderLocalVideo(input: {
   const videoFilter =
     "subtitles='" +
     subtitleFile +
-    "':force_style='FontName=Arial,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=1,Alignment=2,MarginV=44,WrapStyle=2'";
+    "':force_style='FontName=Arial,FontSize=11,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101620,Outline=2,Shadow=0,Alignment=2,MarginL=70,MarginR=70,MarginV=105,WrapStyle=2'";
 
   await run("ffmpeg", [
     "-y",
