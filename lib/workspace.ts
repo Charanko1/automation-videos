@@ -88,7 +88,7 @@ export const WORKSPACE_STORAGE_KEY = "ai-office.workspace.v1";
 export const DEFAULT_SETTINGS: ProductionSettings = {
   dailyCeiling: 30000,
   targetVideos: 2,
-  scenesPerVideo: 8,
+  scenesPerVideo: 6,
   maxBreaks: 2,
 };
 
