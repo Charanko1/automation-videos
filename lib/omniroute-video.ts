@@ -169,13 +169,10 @@ async function resolveVideoModel() {
     );
   }
 
-  const preferred = models.find(looksLikeI2VModel);
-  if (preferred) {
-    console.warn(
-      `[AI Office] No Novita I2V model was exposed by OmniRoute; auto-selected ${preferred}. Set OMNIROUTE_VIDEO_MODEL explicitly to your intended I2V provider/model.`,
-    );
-    return preferred;
-  }
+  throw new Error(
+    "KlingAI I2V is not exposed by OmniRoute. No automatic I2V fallback is allowed. " +
+      "Connect a KlingAI-capable provider or set OMNIROUTE_VIDEO_MODEL to the exact KlingAI model ID shown by /v1/models.",
+  );
 
   const novitaModels = models.filter((id) => id.toLowerCase().startsWith("novita/"));
   if (novitaModels.length > 0) {
@@ -277,7 +274,7 @@ export async function generateWithOmniRouteVideo(
       `OmniRoute video request failed (${response.status}).`;
 
     console.error("[AI Office] I2V OMNIROUTE RESPONSE", {
-      buildMarker: "I2V-OMNI-BUILD-20261003-1",
+      buildMarker: "I2V-OMNI-BUILD-20261003-3",
       status: response.status,
       statusText: response.statusText,
       model,
