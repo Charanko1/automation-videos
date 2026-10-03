@@ -26,6 +26,16 @@ export async function POST(request: Request) {
           .slice(0, 30)
       : [];
 
+    const videoAssets = Array.isArray(body?.videoAssets)
+      ? body.videoAssets
+          .filter((asset: unknown) => {
+            if (!asset || typeof asset !== "object") return false;
+            const item = asset as Record<string, unknown>;
+            return typeof item.assetUrl === "string" && item.assetUrl.startsWith("/generated/videos/");
+          })
+          .slice(0, 30)
+      : [];
+
     if (!projectId || !title || !script || !director) {
       return NextResponse.json(
         { ok: false, error: "projectId, title, script, and director are required." },
@@ -40,8 +50,8 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`[AI Office] Render started: ${projectId} (${imageAssets.length} images)`);
-    const result = await renderLocalVideo({ projectId, title, script, director, model, imageAssets });
+    console.log(`[AI Office] Render started: ${projectId} (${videoAssets.length} I2V videos)`);
+    const result = await renderLocalVideo({ projectId, title, script, director, model, imageAssets, videoAssets });
     console.log(`[AI Office] Render completed: ${projectId}`);
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
