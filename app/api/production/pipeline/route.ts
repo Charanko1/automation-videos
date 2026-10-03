@@ -141,50 +141,6 @@ export async function POST(request: Request) {
       ].join("\n");
     }
 
-    if (stage === "director") {
-      prompt = [
-        "You are Dira, the Director of a character-driven 3D animated drama studio.",
-        `Project title: ${title}`,
-        `Genre: ${format}`,
-        "",
-        "Convert the screenplay into an exact scene-by-scene production plan.",
-        "This is DRAMA for YouTube Shorts. The characters are actors inside one continuous world. Do not summarize a topic.",
-        "",
-        "STRICT OUTPUT: return exactly ONE valid JSON object and nothing else. No markdown fences. No commentary.",
-        "Return this exact top-level shape and order: { \"character_bible\": [...], \"scenes\": [...] }. Put character_bible FIRST and scenes SECOND.",
-        "character_bible MUST be a JSON array of 3-6 character objects, never a prose paragraph. It must define every recurring character with character_id, name, apparent_age, gender_presentation, species_or_human, face, skin_or_surface, eyes, hair_or_head_features, body_build, signature_clothing, footwear, accessories, personality, voice_personality, color_palette, art_style, hard_constraints.",
-        "Do not repeat the full character bible inside scenes. Keep character fields concise but concrete so the complete JSON fits in one response.",
-        "character_bible must stay as the top-level JSON array described above; do not rename it or move it inside scenes.",
-        `Create exactly ${requestedSceneCount} scenes. Do not create more or fewer.`,
-        "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
-        "Set aspect_ratio to \"9:16\" for every scene. This production is vertical-first for YouTube Shorts.",
-        "dialogue is an array of objects: speaker, character_id, line, emotion. Prefer 1-3 short dialogue lines per scene for this production pass.",
-        "Every dialogue line must be in Bahasa Indonesia (id-ID) because Vox will synthesize it with an Indonesian Windows voice.",
-        "A brief silent visual beat is allowed for at most one scene when it improves pacing, but the overall six-scene Short must contain dialogue.",
-        "characters_present is an array of character_id values visible in the shot.",
-        "reference_character_ids must contain every recurring character visible in the shot.",
-        "narration_excerpt should be empty when dialogue and acting already carry the scene. Do not invent narration just to fill the field.",
-        "on_screen_text should be empty unless the story naturally requires readable diegetic text such as a sign, letter, or phone screen.",
-        "visual_prompt_core must describe one film frame of the characters ACTING: their pose, eye-lines, expressions, relationships, props, environment, and immediate action.",
-        "For every scene, choose a distinct physical action or reaction and write it explicitly in character_actions. Avoid static posing; the frame must look like a frozen animation keyframe captured mid-action.",
-        "Use varied movement across the six scenes: at least one reach/gesture, one turn/reaction, one interaction with a prop, and one stronger body movement such as running, grabbing, opening, pulling, or recoiling when story-appropriate.",
-        "camera_and_composition must specify a shot type such as establishing, wide, medium, two-shot, over-the-shoulder, close-up, reaction shot, and include framing and camera movement when useful.",
-        "lighting_and_color must support the emotional beat and maintain continuity.",
-        "Track continuity across scenes: character appearance, clothing, props, location, time of day, and emotional state.",
-        "For voice_personality, describe the character's delivery in Bahasa Indonesia: pace, tone, warmth, tension, and emotional expression.",
-        "GLOBAL STYLE LOCK: bright cheerful preschool 3D animation for ages 2-7, rounded chubby characters, big expressive eyes, saturated pastel colors, soft even daylight, uncluttered backgrounds, gentle playful motion, vertical 9:16.",
-        "NEVER: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scenes, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, random extra characters, random costume changes.",
-        "Prioritize readable acting shots: two-shots, over-the-shoulder dialogue, close-ups, reaction shots, and motivated establishing shots.",
-        "Do not claim that any image, audio, or video asset has already been generated.",
-        "If output length is constrained, prioritize a complete character_bible and exactly " + requestedSceneCount + " complete scenes over commentary. Do not sacrifice the character bible for verbose scene descriptions.",
-        "Keep all dialogue lines to 12 words or fewer and natural for speech. Target 45-60 seconds total spoken dialogue across the six scenes.",
-        "Language consistency is mandatory: screenplay, Director dialogue, subtitles, and TTS input must all use Bahasa Indonesia (id-ID).",
-        "",
-        "SCREENPLAY:",
-        script,
-      ].join("\n");
-    }
-
     let result: TextBrainResult;
 
     if (stage === "director" && (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt") === "omniroute") {
@@ -217,24 +173,24 @@ export async function POST(request: Request) {
 
       if (initialPlanNeedsRepair) {
         const repairPrompt = [
-          "You are Dira, the Director of a cute 3D animated YouTube Shorts studio.",
-          "Repair and normalize the Director output below into one valid JSON object.",
-          "PRODUCTION LANGUAGE: Bahasa Indonesia (id-ID).",
-          "Do not invent a new story. Preserve the screenplay's characters, events, locations, actions, and emotional beats.",
-          "The final JSON MUST contain exactly these top-level keys in this order: character_bible, scenes.",
-          "character_bible MUST be a JSON array of 3-6 recurring character objects.",
-          "scenes MUST be an array of exactly 6 scene objects.",
-          "Every scene object MUST contain scene_id, purpose, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
-          "Every scene MUST have at least one dialogue object unless a single brief silent reaction beat is clearly needed; the whole Short must contain dialogue.",
-          "Every dialogue object MUST contain speaker, character_id, line, emotion. Write dialogue in natural Bahasa Indonesia.",
-          "Set aspect_ratio to 9:16 for every scene.",
-          "Keep dialogue short: maximum 12 words per line.",
-          "Return ONLY valid JSON. No markdown fences. No commentary.",
+          "You are Dira, the Director and prompt supervisor for a preschool YouTube Shorts studio.",
+          "Normalize the Director output into one valid JSON object for children ages 2-7.",
+          "Keep the existing story, characters, locations, actions, and lesson. Do not invent unrelated events.",
+          "The final JSON MUST contain exactly these top-level keys: character_bible, scenes.",
+          "character_bible MUST be an array. Bimo MUST be the first character and keep his exact fixed description.",
+          `scenes MUST be an array of exactly ${requestedSceneCount} scene objects.`,
+          "Each scene is ONE simple action in ONE location and lasts 4-6 seconds.",
+          "Every visual field must be in ENGLISH. narration_excerpt and spoken dialogue must be in Bahasa Indonesia.",
+          "Every narration_excerpt must contain 6 words or fewer.",
+          "Every scene dialogue array must contain exactly one short Narrator line equal to narration_excerpt, with an empty character_id.",
+          "Set aspect_ratio to 9:16. Keep the bottom 20% empty for subtitles.",
+          "Apply the exact bright cheerful preschool style and Bimo character lock from the original Director instructions.",
+          "Return ONLY valid JSON. No markdown. No commentary.",
           "",
-          "ORIGINAL SCREENPLAY:",
+          "ORIGINAL STORYBOARD:",
           script,
           "",
-          "DIRECTOR OUTPUT TO REPAIR:",
+          "DIRECTOR OUTPUT TO NORMALIZE:",
           result.text.slice(0, 14000),
         ].join("\n");
 
