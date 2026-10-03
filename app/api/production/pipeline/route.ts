@@ -13,7 +13,8 @@ type TextBrainResult = {
 };
 
 async function generateWithPreferredBrain(prompt: string): Promise<TextBrainResult> {
-  const preferred = (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "omniroute");
+  const preferred =
+    process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "omniroute";
 
   if (preferred === "chatgpt") {
     try {
@@ -24,21 +25,15 @@ async function generateWithPreferredBrain(prompt: string): Promise<TextBrainResu
         "[AI Office] ChatGPT plan brain unavailable; falling back to OmniRoute:",
         chatgptError,
       );
+      const result = await generateWithOmniRoute(prompt);
+      return { ...result, provider: "OmniRoute" };
     }
   }
 
-  try {
-    const result = await generateWithOmniRoute(prompt);
-    return { ...result, provider: "OmniRoute" };
-  } catch (omniError) {
-    if (preferred !== "omniroute") throw omniError;
-    console.warn(
-      "[AI Office] OmniRoute brain unavailable; falling back to ChatGPT plan:",
-      omniError,
-    );
-    const result = await generateWithChatGPT(prompt);
-    return { ...result, provider: "ChatGPT plan" };
-  }
+  // OmniRoute is the explicit default. Do not silently fall back to ChatGPT,
+  // because a missing ChatGPT connection should never hide the real OmniRoute error.
+  const result = await generateWithOmniRoute(prompt);
+  return { ...result, provider: "OmniRoute" };
 }
 
 
