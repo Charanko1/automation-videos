@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       "You are Gemi, the Image Artist for AI Office.",
       "Generate ONE complete full-frame 9:16 image for a cheerful preschool YouTube Short for children ages 2-7.",
       "Character consistency, age-appropriate acting, and playful body motion are mandatory.",
-      "This is ONE standalone animation keyframe, not a collage, split screen, montage, or storyboard sheet."
+      "This is ONE standalone animation keyframe, not a collage, split screen, montage, or storyboard sheet.",
       KIDS_SHORTS_STYLE_LOCK,
       KIDS_SHORTS_CHARACTER_LOCK,
       GEMI_VISUAL_PROFILE,
