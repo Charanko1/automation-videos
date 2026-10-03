@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const format = typeof body?.format === "string" ? body.format.trim().slice(0, 80) : "Drama";
     const research = typeof body?.research === "string" ? body.research.trim() : "";
     const script = typeof body?.script === "string" ? body.script.trim() : "";
-    const requestedSceneCount = 6;
+    const requestedSceneCount = Math.min(8, Math.max(5, Math.round(Number(body?.sceneCount) || 6)));
 
     if (!["research", "script", "director"].includes(stage)) {
       return NextResponse.json({ ok: false, error: "stage must be research, script, or director." }, { status: 400 });
@@ -67,56 +67,77 @@ export async function POST(request: Request) {
 
     if (stage === "research") {
       prompt = [
-        "You are Rhea, the Story Researcher in a small animated drama studio.",
+        "You are Rhea, a preschool YouTube Shorts story designer.",
         `Project title: ${title}`,
-        `Genre: ${format}`,
+        `Theme: ${format}`,
         "",
-        "Develop the story foundation for a fictional, character-driven drama.",
-        "PRODUCTION LANGUAGE: Bahasa Indonesia (id-ID). Write all story content in natural Bahasa Indonesia.",
-        "Do not turn the concept into a documentary, explainer, lecture, or narrated list of facts.",
+        "Create a tiny, cheerful, positive story for children ages 2-7.",
+        "Audience safety is absolute: no scary, dark, sad, violent, dangerous, adult, or heavy-conflict themes.",
+        "Good themes include sharing, cleanliness, good habits, colors, numbers, letters, cute animals, helping, kindness, and simple learning.",
+        "MAIN CHARACTER LOCK: Bimo, a 5-year-old Indonesian boy, round face, short black hair, big brown eyes, red t-shirt, blue shorts, yellow sneakers.",
+        "Keep the cast small: Bimo plus at most 2 simple supporting characters.",
+        "Build a very clear beginning, simple action, and happy ending.",
+        "The story must be easy to visualize with one simple action per scene and one location per scene.",
+        "PRODUCTION LANGUAGE: Bahasa Indonesia.",
         "",
-        "Return a compact story bible containing:",
-        "1. Premise.",
-        "2. Setting and world rules.",
-        "3. Main cast: 3-6 recurring characters. For every character include character_id, name, role, personality, goal, fear, secret, relationship_to_protagonist.",
-        "4. Central conflict and stakes.",
-        "5. Beginning, midpoint escalation, climax, ending.",
-        "6. Protagonist emotional arc.",
-        "7. A short continuity note for clothing, props, locations, and recurring relationships.",
-        "Make the story visual and easy to stage as an animated short drama.",
+        "Return a compact story brief with: premise, lesson, setting, cast, beginning, middle, ending, and a continuity note.",
       ].join("\n");
     }
 
     if (stage === "script") {
       prompt = [
-        "You are Wri, the Screenwriter for a character-driven animated drama studio.",
+        "You are Wri, a preschool YouTube Shorts storyboard writer.",
         `Project title: ${title}`,
-        `Genre: ${format}`,
+        `Theme: ${format}`,
         "",
-        "Turn the story foundation into a cinematic screenplay.",
-        "The audience should discover the story through characters, acting, conflict, actions, and dialogue.",
-        "PRODUCTION LANGUAGE: Bahasa Indonesia (id-ID). Write every spoken dialogue line in natural Bahasa Indonesia. Do not write dialogue in English unless a specific English phrase is intentionally part of the story.",
+        "Turn the story brief into a ready-to-produce sequence for children ages 2-7.",
+        "PRODUCTION LANGUAGE: Bahasa Indonesia for all narration and spoken lines.",
+        `Use exactly ${requestedSceneCount} scenes.`,
+        "Each scene lasts 4-6 seconds.",
+        "Each scene contains ONE simple action and ONE location only.",
+        "Keep the scene visually simple: Bimo plus at most 1-2 supporting characters.",
+        "Use a clear flow: opening -> simple action/problem -> happy result.",
+        "No dark, scary, sad, violent, dangerous, adult, or heavy-conflict material.",
+        "Every narration/subtitle line must be natural Bahasa Indonesia and MAXIMUM 6 WORDS.",
+        "Prefer one short spoken/narrated line per scene.",
+        "Make Bimo the main character in the story.",
+        "Do not write visual prompts in Indonesian; visual prompts will be created in English by Dira.",
+        "RETURN ONLY THE STORYBOARD SCRIPT.",
         "",
-        "Requirements:",
-        `- Write exactly ${requestedSceneCount} scenes for a YouTube Short.`,
-        "- Target a final spoken duration of roughly 45-60 seconds.",
-        "- Each scene should contain 1-3 dialogue lines.",
-        "- Keep each dialogue line to 12 words or fewer.",
-        "- Use compact scenes with a strong hook, escalating conflict, reveal/twist, and clean ending.",
-        "- Do not pad scenes with exposition; let actions, reactions, and short dialogue carry the story.",
-        "- Each scene has a clear location, time of day, purpose, emotional beat, visible action, and consequence that leads into the next scene.",
-        "- Use 2-4 recurring characters across the story. Characters must have stable names and personalities.",
-        "- Dialogue should carry the scene. Avoid narrator exposition.",
-        "- Stage directions must be short and only describe visible action, expressions, blocking, props, or camera-relevant behavior.",
-        "- Include reversals, tension, reactions, and a satisfying dramatic ending.",
-        "- Do not use documentary language, educational narration, fact lists, citations, or a YouTube call-to-action.",
-        "- Do not use Markdown bullets in the screenplay.",
-        "- Use scene headings in plain text only, such as INT. APARTMENT - NIGHT.",
-        "- Character dialogue should use the format CHARACTER NAME: spoken line.",
-        "- RETURN ONLY THE SCREENPLAY.",
-        "",
-        "STORY FOUNDATION:",
+        "STORY BRIEF:",
         research,
+      ].join("\n");
+    }
+
+    if (stage === "director") {
+      prompt = [
+        "You are Dira, the Director and prompt supervisor for a preschool YouTube Shorts studio.",
+        `Project title: ${title}`,
+        `Theme: ${format}`,
+        "",
+        "Convert the storyboard into a production-ready JSON plan for children ages 2-7.",
+        "CONTENT SAFETY: bright, cheerful, warm, positive, playful, safe. No dark, scary, sad, violent, dangerous, adult, or heavy-conflict material.",
+        "STRICT OUTPUT: return exactly ONE valid JSON object and nothing else. No markdown fences. No commentary.",
+        "Top-level shape: { \"character_bible\": [...], \"scenes\": [...] }.",
+        "character_bible MUST be an array. Bimo MUST be the first character and use EXACTLY this core identity: Bimo, a 5-year-old Indonesian boy, round face, short black hair, big brown eyes, red t-shirt, blue shorts, yellow sneakers.",
+        "For every additional character, define a fixed character_id and a complete reusable visual description. Never redesign them between scenes.",
+        `Create exactly ${requestedSceneCount} scenes.`,
+        "Each scene MUST represent ONE simple visible action in ONE location and last 4-6 seconds.",
+        "Each scene MUST contain: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
+        "Set aspect_ratio to \"9:16\" in every scene.",
+        "visual_prompt_core MUST be written entirely in ENGLISH.",
+        "camera_and_composition, lighting_and_color, environment, and character_actions MUST be written in ENGLISH.",
+        "Do not put Indonesian narration/subtitle inside visual_prompt_core.",
+        "narration_excerpt MUST be in Bahasa Indonesia and MAXIMUM 6 WORDS.",
+        "dialogue MUST contain exactly one short spoken line per scene using the narration_excerpt as the spoken line, with speaker \"Narrator\" and character_id empty. This line is the subtitle/voice-over for Vox.",
+        "No scene may contain more than one narration line.",
+        "Every scene must keep the bottom 20% visually empty for subtitles.",
+        "STYLE LOCK for EVERY visual prompt: Bright, cheerful 3D animated cartoon for toddlers and kids, modern preschool YouTube animation, soft high-end family-friendly 3D animated-film look, chubby rounded characters, big expressive eyes, big smiles, simple shapes, saturated pastel colors, soft even daylight, clean uncluttered background, high contrast, gentle camera movement, slow pacing, bouncy playful character motion, vertical 9:16, subject centered, bottom 20% empty, no text, no letters, no watermark.",
+        "CHARACTER LOCK for EVERY scene: Bimo, a 5-year-old Indonesian boy, round face, short black hair, big brown eyes, red t-shirt, blue shorts, yellow sneakers. Always the same face, outfit, colors, and proportions.",
+        "NEGATIVE PROMPT for EVERY scene: dark, scary, horror, moody lighting, dramatic shadows, photorealistic, realistic human, crowded scene, multiple rooms, crying, violence, adult themes, text, subtitles, watermark, distorted hands, extra fingers, blurry, inconsistent character.",
+        "",
+        "STORYBOARD SCRIPT:",
+        script,
       ].join("\n");
     }
 
@@ -151,8 +172,8 @@ export async function POST(request: Request) {
         "lighting_and_color must support the emotional beat and maintain continuity.",
         "Track continuity across scenes: character appearance, clothing, props, location, time of day, and emotional state.",
         "For voice_personality, describe the character's delivery in Bahasa Indonesia: pace, tone, warmth, tension, and emotional expression.",
-        "GLOBAL STYLE LOCK: cute polished 3D animated film, appealing chibi/toy-like cinematic proportions, soft rounded geometry, expressive eyes and faces, polished 3D materials, subtle depth of field, warm film lighting, soft volumetric light, family-friendly dramatic storytelling.",
-        "NEVER: comic panels, 2D illustration, anime, manga, graphic novel, flat vector art, thick ink outlines, photorealistic photography, infographic layout, poster art, text-heavy compositions, random extra characters, random costume changes.",
+        "GLOBAL STYLE LOCK: bright cheerful preschool 3D animation for ages 2-7, rounded chubby characters, big expressive eyes, saturated pastel colors, soft even daylight, uncluttered backgrounds, gentle playful motion, vertical 9:16.",
+        "NEVER: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scenes, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, random extra characters, random costume changes.",
         "Prioritize readable acting shots: two-shots, over-the-shoulder dialogue, close-ups, reaction shots, and motivated establishing shots.",
         "Do not claim that any image, audio, or video asset has already been generated.",
         "If output length is constrained, prioritize a complete character_bible and exactly " + requestedSceneCount + " complete scenes over commentary. Do not sacrifice the character bible for verbose scene descriptions.",
