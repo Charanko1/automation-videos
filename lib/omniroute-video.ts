@@ -136,9 +136,25 @@ async function resolveVideoModel() {
         .filter(Boolean)
     : [];
 
-  // Prefer Novita I2V explicitly. The generic "first I2V-like model" strategy
-  // can accidentally pick no-auth/demo providers such as veoaifree-web/seedance,
-  // which may generate a video URL that OmniRoute itself cannot fetch.
+  // Prefer Kling I2V when it is exposed by OmniRoute. This avoids the
+  // previous Novita-first behavior that caused production runs to fail with
+  // 403/insufficient-balance when the Novita account had no credit.
+  const klingI2V = models.find((id) => {
+    const value = id.toLowerCase();
+    return (
+      (value.startsWith("klingai/") || value.startsWith("kling/")) &&
+      (value.includes("i2v") ||
+        value.includes("image-to-video") ||
+        value.includes("image_to_video") ||
+        value.includes("v2.5-turbo") ||
+        value.includes("v2-5-turbo") ||
+        value.includes("v2.6") ||
+        value.includes("v2-6"))
+    );
+  });
+  if (klingI2V) return klingI2V;
+
+  // Keep Novita as the next fallback when Kling I2V is not connected.
   const novitaI2V = models.find((id) => {
     const value = id.toLowerCase();
     return (
