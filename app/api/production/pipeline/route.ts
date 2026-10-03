@@ -217,6 +217,7 @@ export async function POST(request: Request) {
             ok: false,
             error: `Director returned ${dramaPlan.scenes.length} scenes, but exactly ${requestedSceneCount} were requested after normalization.`,
             directorRawPreview: result.text.slice(0, 5000),
+            hint: "The Director normalization pass could not produce six parseable scenes. Inspect directorRawPreview before retrying to avoid wasting provider calls.",
           },
           { status: 502 },
         );
