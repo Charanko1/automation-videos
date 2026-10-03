@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { generateWithNovitaKlingI2V } from "../../../../lib/novita-video";
+import { generateWithOmniRouteVideo } from "../../../../lib/omniroute-video";
 
 function safeName(value: string) {
   return (
@@ -24,32 +24,38 @@ function resolvePublicAssetPath(assetUrl: string) {
   return absolute;
 }
 
-function extensionForContentType(contentType: string) {
-  return /webm/i.test(contentType) ? ".webm" : ".mp4";
+function extensionForMime(mimeType: string) {
+  if (/webm/i.test(mimeType)) return ".webm";
+  if (/quicktime/i.test(mimeType)) return ".mov";
+  return ".mp4";
 }
 
 async function downloadVideo(url: string) {
-  const response = await fetch(url, {
+  const baseUrl =
+    process.env.OMNIROUTE_BASE_URL?.trim().replace(/\/v1\/?$/, "") ||
+    "http://127.0.0.1:20128";
+  const absoluteUrl = /^https?:\/\//i.test(url)
+    ? url
+    : new URL(url, `${baseUrl}/`).toString();
+
+  const response = await fetch(absoluteUrl, {
     cache: "no-store",
     signal: AbortSignal.timeout(10 * 60 * 1000),
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Novita generated the video, but downloading the video failed (${response.status}).`,
-    );
+    throw new Error(`OmniRoute returned a video URL, but downloading it failed (${response.status}).`);
   }
 
+  const contentType = response.headers.get("content-type") || "video/mp4";
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length < 1024) {
-    throw new Error("Novita returned an unexpectedly small video file.");
+    throw new Error("The generated video response was unexpectedly small.");
   }
 
   return {
     bytes,
-    extension: extensionForContentType(
-      response.headers.get("content-type") || "video/mp4",
-    ),
+    extension: extensionForMime(contentType),
   };
 }
 
@@ -81,11 +87,7 @@ export async function POST(request: Request) {
 
     if (!projectId || !sceneId || !sourceAssetUrl || !prompt) {
       return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "projectId, sceneId, sourceAssetUrl, and prompt are required.",
-        },
+        { ok: false, error: "projectId, sceneId, sourceAssetUrl, and prompt are required." },
         { status: 400 },
       );
     }
@@ -93,10 +95,7 @@ export async function POST(request: Request) {
     const imagePath = resolvePublicAssetPath(sourceAssetUrl);
     if (!imagePath) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "sourceAssetUrl must point to a generated local image.",
-        },
+        { ok: false, error: "sourceAssetUrl must point to a generated local image." },
         { status: 400 },
       );
     }
@@ -106,23 +105,15 @@ export async function POST(request: Request) {
       throw new Error("The source scene image is empty.");
     }
 
-    if (imageBytes.length > 10 * 1024 * 1024) {
-      throw new Error("The source scene image is larger than Novita's 10MB limit.");
-    }
-
     const imageDataUrl =
       "data:image/png;base64," + imageBytes.toString("base64");
 
-    const result = await generateWithNovitaKlingI2V(
-      prompt,
-      imageDataUrl,
-      {
-        durationSeconds:
-          Number.isFinite(durationSeconds) && durationSeconds > 0
-            ? durationSeconds
-            : 5,
-      },
-    );
+    const result = await generateWithOmniRouteVideo(prompt, imageDataUrl, {
+      durationSeconds:
+        Number.isFinite(durationSeconds) && durationSeconds > 0
+          ? durationSeconds
+          : 5,
+    });
 
     const projectSlug = safeName(projectId);
     const sceneSlug = safeName(sceneId);
@@ -136,29 +127,37 @@ export async function POST(request: Request) {
 
     await fs.mkdir(outputDir, { recursive: true });
 
-    const downloaded = await downloadVideo(result.videoUrl);
-    const destination = path.join(
-      outputDir,
-      sceneSlug + downloaded.extension,
-    );
-    await fs.writeFile(destination, downloaded.bytes);
+    let extension = ".mp4";
+    let destination = path.join(outputDir, sceneSlug + extension);
+
+    if (result.videoBase64) {
+      const rawBase64 = result.videoBase64.replace(/^data:[^;]+;base64,/i, "");
+      const bytes = Buffer.from(rawBase64, "base64");
+      if (bytes.length < 1024) {
+        throw new Error("OmniRoute returned an unexpectedly small base64 video.");
+      }
+      extension = extensionForMime(result.mimeType);
+      destination = path.join(outputDir, sceneSlug + extension);
+      await fs.writeFile(destination, bytes);
+    } else if (result.videoUrl) {
+      const downloaded = await downloadVideo(result.videoUrl);
+      extension = downloaded.extension;
+      destination = path.join(outputDir, sceneSlug + extension);
+      await fs.writeFile(destination, downloaded.bytes);
+    }
 
     return NextResponse.json({
       ok: true,
       sceneId,
-      assetUrl: `/generated/videos/${projectSlug}/${sceneSlug}${downloaded.extension}`,
+      assetUrl: `/generated/videos/${projectSlug}/${sceneSlug}${extension}`,
       model: result.model,
-      taskId: result.taskId,
-      status: result.status,
-      progressPercent: result.progressPercent,
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Video generation failed.";
-    console.error("[AI Office] Kling I2V failed:", message);
+    const message = error instanceof Error ? error.message : "Video generation failed.";
+    console.error("[AI Office] I2V failed:", message);
     return NextResponse.json(
-      { ok: false, error: `Kling I2V failed for ${sceneId}. ${message}` },
+      { ok: false, error: `I2V failed for ${sceneId}. ${message}` },
       { status: 502 },
     );
   }
