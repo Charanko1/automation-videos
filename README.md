@@ -60,6 +60,26 @@ npm run dev
 ```
 
 AI Office calls OmniRoute only from the server-side production pipeline, so the OmniRoute API key is never exposed to the browser.
+
+## Kids Shorts video pipeline
+
+The Kids Shorts flow is now:
+
+`ChatGPT plan → OmniRoute fallback` for story, screenplay, and Director
+→ Gemi for one clean 9:16 source frame per scene
+→ GPT Video Artist via OmniRoute `/v1/videos/generations` for image-to-video motion
+→ Windows Indonesian TTS
+→ FFmpeg subtitles/audio finishing.
+
+Set an image-to-video model in `.env.local` when needed:
+
+```env
+OMNIROUTE_VIDEO_MODEL=
+```
+
+When the variable is blank, AI Office checks OmniRoute's model catalog and selects a model whose identifier looks I2V-capable. For deterministic behavior, set the exact model exposed by your OmniRoute installation.
+
+The final renderer refuses to create a still-image slideshow for Kids Shorts. Every Director scene must have a generated I2V video before the final MP4 can be assembled. OmniRoute's current API exposes video generation at `POST /v1/videos/generations`; the exact image-input fields are provider-specific, so the selected model must support image-to-video.
 ## Architecture
 
 - Next.js App Router
