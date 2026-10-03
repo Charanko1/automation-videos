@@ -38,25 +38,53 @@ async function downloadVideo(url: string) {
     ? url
     : new URL(url, `${baseUrl}/`).toString();
 
-  const response = await fetch(absoluteUrl, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(10 * 60 * 1000),
-  });
+  const parsed = new URL(absoluteUrl);
+  const omniRouteHost =
+    parsed.hostname === "localhost" ||
+    parsed.hostname === "127.0.0.1" ||
+    parsed.hostname === "::1";
+  const omniRouteApiKey = process.env.OMNIROUTE_API_KEY?.trim();
 
-  if (!response.ok) {
-    throw new Error(`OmniRoute returned a video URL, but downloading it failed (${response.status}).`);
+  const attempts: RequestInit[] = [
+    {
+      headers: {
+        Accept: "video/mp4,video/webm,video/*;q=0.9,*/*;q=0.1",
+        "User-Agent": "AI-Office/1.0",
+        ...(omniRouteHost && omniRouteApiKey
+          ? { Authorization: `Bearer ${omniRouteApiKey}` }
+          : {}),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10 * 60 * 1000),
+    },
+  ];
+
+  let lastStatus = 0;
+  let lastDetail = "";
+
+  for (let attempt = 0; attempt < attempts.length; attempt += 1) {
+    const response = await fetch(absoluteUrl, attempts[attempt]);
+    if (response.ok) {
+      const contentType = response.headers.get("content-type") || "video/mp4";
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length < 1024) {
+        throw new Error("The generated video response was unexpectedly small.");
+      }
+
+      return {
+        bytes,
+        extension: extensionForMime(contentType),
+      };
+    }
+
+    lastStatus = response.status;
+    lastDetail = (await response.text().catch(() => "")).slice(0, 300);
   }
 
-  const contentType = response.headers.get("content-type") || "video/mp4";
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length < 1024) {
-    throw new Error("The generated video response was unexpectedly small.");
-  }
-
-  return {
-    bytes,
-    extension: extensionForMime(contentType),
-  };
+  const host = parsed.hostname;
+  throw new Error(
+    `Video artifact download failed (${lastStatus}) from ${host}.${lastDetail ? ` Upstream: ${lastDetail}` : ""}`,
+  );
 }
 
 export async function POST(request: Request) {
