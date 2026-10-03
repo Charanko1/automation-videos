@@ -9,7 +9,7 @@ export default function ProjectsPage() {
   const [workspace, setWorkspace] = useState<Workspace>(EMPTY_WORKSPACE);
   const [title, setTitle] = useState("");
   const [type, setType] = useState("Drama");
-  const [scenes, setScenes] = useState("8");
+  const [scenes, setScenes] = useState("6");
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function ProjectsPage() {
     });
     setTitle("");
     setType("Drama");
-    setScenes("8");
+    setScenes("6");
     setShowForm(false);
   };
 
@@ -59,14 +59,14 @@ export default function ProjectsPage() {
     </header>
 
     <div style={{padding:22,maxWidth:1200,width:"100%",margin:"0 auto",overflow:"auto"}}>
-      <div className="page-head"><div><div className="eyebrow">WORKSPACE</div><h1 className="page-title">Projects</h1><div className="muted">Create story-driven projects with recurring characters, scenes, and production plans.</div></div><button className="ctrl green compact" onClick={() => setShowForm((value) => !value)}><Plus size={14}/> New Project</button></div>
+      <div className="page-head"><div><div className="eyebrow">WORKSPACE</div><h1 className="page-title">Projects</h1><div className="muted">Create 9:16 character-driven drama Shorts with a tight 45–60 second target.</div></div><button className="ctrl green compact" onClick={() => setShowForm((value) => !value)}><Plus size={14}/> New Project</button></div>
 
       {showForm && <form className="card project-form" onSubmit={submit}>
         <div className="title">CREATE PROJECT</div>
         <div className="form-grid">
           <label><span className="mini">Project name</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. The Letter She Never Received" autoFocus required /></label>
           <label><span className="mini">Genre</span><select value={type} onChange={(e) => setType(e.target.value)}><option>Drama</option><option>Romance</option><option>Comedy</option><option>Mystery</option><option>Thriller</option><option>Fantasy</option><option>Action</option><option>Horror</option><option>Slice of Life</option></select></label>
-          <label><span className="mini">Scenes</span><input type="number" min="1" max="500" value={scenes} onChange={(e) => setScenes(e.target.value)} required /></label>
+          <label><span className="mini">Scenes</span><input type="number" min="6" max="6" value={scenes} onChange={(e) => setScenes(e.target.value)} required /></label>
         </div>
         <button className="ctrl blue compact" type="submit">Create project</button>
       </form>}
