@@ -41,22 +41,32 @@ async function requestOmniRoute(path: string, init: RequestInit = {}) {
     );
   }
 
-  try {
-    const headers = new Headers(init.headers);
-    headers.set("Authorization", `Bearer ${apiKey}`);
-    headers.set("Content-Type", "application/json");
-
-    return await fetch(`${baseUrl}${path}`, {
-      ...init,
-      headers,
-      cache: "no-store",
-    });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Cannot reach OmniRoute at ${baseUrl}. Make sure OmniRoute is running on port 20128. Original error: ${detail}`,
-    );
+  const candidates = [baseUrl];
+  if (/^http:\/\/localhost(?::|\/)/i.test(baseUrl)) {
+    candidates.push(baseUrl.replace(/^http:\/\/localhost/i, "http://127.0.0.1"));
   }
+
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${apiKey}`);
+  headers.set("Content-Type", "application/json");
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await fetch(`${candidate}${path}`, {
+        ...init,
+        headers,
+        cache: "no-store",
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(
+    `Cannot reach OmniRoute at ${candidates.join(" or ")}. Make sure OmniRoute is running on port 20128 and reachable from this PC. Original error: ${detail}`,
+  );
 }
 
 function isVideoModel(id: string) {
