@@ -88,7 +88,10 @@ export async function POST(request: Request) {
     let provider: "ChatGPT plan" | "OmniRoute" | "Cloudflare Workers AI" = "Cloudflare Workers AI";
     const errors: string[] = [];
 
-    if (imageProvider === "chatgpt" || imageProvider === "auto") {
+    // ChatGPT subscription-sharing tokens cannot call the public image_generation tool.
+    // Keep the explicit "chatgpt" mode for diagnostics, but do not waste time retrying it
+    // during normal "auto" routing. Auto starts with OmniRoute image generation, then Cloudflare.
+    if (imageProvider === "chatgpt") {
       try {
         const chatgptResult = await generateWithChatGPTImage(fullPrompt);
         result = {
@@ -167,7 +170,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: false,
       code: "image_generation_exception",
-      error: error instanceof Error ? error.message : "Unknown Cloudflare image error.",
+      error: error instanceof Error ? error.message : "Image generation failed.",
     }, { status: 500 });
   }
 }
