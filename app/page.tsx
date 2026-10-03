@@ -9,7 +9,7 @@ import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type AIProduction, type
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
 const people = [
-  { id: "rhea", name: "Rhea", role: "Kids Story Designer", provider: "ChatGPT plan → OmniRoute fallback", dept: "research", color: "#73a5ff" },
+  { id: "rhea", name: "Rhea", role: "Kids Story Designer", provider: "OmniRoute → ChatGPT fallback", dept: "research", color: "#73a5ff" },
   { id: "wri", name: "Wri", role: "Kids Storyboard Writer", provider: "ChatGPT plan → OmniRoute fallback", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Kids Prompt Director", provider: "ChatGPT plan → OmniRoute fallback", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "ChatGPT Image → OmniRoute → Cloudflare", dept: "image", color: "#68dcae" },
@@ -168,12 +168,10 @@ export default function Page() {
     setToast("Checking existing Kids Shorts stages before spending another AI call…");
 
     const requestedSceneCount = Math.min(8, Math.max(5, activeProject.totalScenes));
-    // This release uses the refreshed ChatGPT plan brain for kids Shorts. Projects created before
-    // this switch have no textProvider marker, so they are intentionally regenerated
-    // once instead of silently reusing OmniRoute-era artifacts.
+    // Kids Shorts artifacts are reusable regardless of which text brain produced them.
+    // OmniRoute is preferred now; ChatGPT plan remains a fallback when OmniRoute is unavailable.
     const kidsArtifacts =
-      activeProject.ai?.pipelineVersion === "kids-shorts-v1" &&
-      activeProject.ai?.textProvider === "ChatGPT plan";
+      activeProject.ai?.pipelineVersion === "kids-shorts-v1";
     let researchText = kidsArtifacts ? activeProject.ai?.research?.trim() ?? "" : "";
     let scriptText = kidsArtifacts ? activeProject.ai?.script?.trim() ?? "" : "";
     let directorText = kidsArtifacts ? activeProject.ai?.director?.trim() ?? "" : "";
@@ -190,7 +188,7 @@ export default function Page() {
       updateActiveProject({ status: "PRODUCING" });
 
       if (!researchText) {
-        setToast("Rhea is building the story world and character cast with the ChatGPT plan brain.");
+        setToast("Rhea is building the story world and character cast with OmniRoute.");
         updateActiveAI({ phase: "RESEARCH", error: undefined });
 
         const response = await fetch("/api/production/pipeline", {
