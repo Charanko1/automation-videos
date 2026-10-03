@@ -48,6 +48,12 @@ async function downloadVideo(
     : new URL(url, `${baseUrl}/`).toString();
 
   const parsed = new URL(absoluteUrl);
+  console.log("[AI Office] I2V-DL-ENTRY", {
+    buildMarker: "I2V-DL-BUILD-20261003-2",
+    cwd: process.cwd(),
+    host: parsed.hostname,
+    path: parsed.pathname,
+  });
   const omniRouteHost =
     parsed.hostname === "localhost" ||
     parsed.hostname === "127.0.0.1" ||
@@ -125,7 +131,7 @@ async function downloadVideo(
       : "";
   throw new Error(
     [
-      `Video artifact download failed (${lastStatus}) from ${host}.`,
+      `[I2V-DL-BUILD-20261003-2] Video artifact download failed (${lastStatus}) from ${host}.`,
       `Final host: ${finalUrlHost}.`,
       metadata?.model ? `Model: ${metadata.model}.` : "",
       metadata?.provider ? `Provider: ${metadata.provider}.` : "",
