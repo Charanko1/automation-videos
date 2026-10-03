@@ -23,6 +23,10 @@ export type OmniRouteVideoResult = {
   videoUrl?: string;
   videoBase64?: string;
   mimeType: string;
+  cacheStatus?: string;
+  provider?: string;
+  requestId?: string;
+  omniRouteVersion?: string;
 };
 
 function normalizeBaseUrl(value: string) {
@@ -234,5 +238,9 @@ export async function generateWithOmniRouteVideo(
     videoUrl: media.url,
     videoBase64: media.videoBase64,
     mimeType: media.mimeType,
+    cacheStatus: response.headers.get("X-OmniRoute-Cache")?.trim() || undefined,
+    provider: response.headers.get("X-OmniRoute-Provider")?.trim() || undefined,
+    requestId: response.headers.get("X-OmniRoute-Request-Id")?.trim() || undefined,
+    omniRouteVersion: response.headers.get("X-OmniRoute-Version")?.trim() || undefined,
   };
 }
