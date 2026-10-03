@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const format = typeof body?.format === "string" ? body.format.trim().slice(0, 80) : "Drama";
     const research = typeof body?.research === "string" ? body.research.trim() : "";
     const script = typeof body?.script === "string" ? body.script.trim() : "";
-    const requestedSceneCount = Math.min(12, Math.max(6, Math.round(Number(body?.sceneCount) || 8)));
+    const requestedSceneCount = 6;
 
     if (!["research", "script", "director"].includes(stage)) {
       return NextResponse.json({ ok: false, error: "stage must be research, script, or director." }, { status: 400 });
@@ -67,7 +67,12 @@ export async function POST(request: Request) {
         "The audience should discover the story through characters, acting, conflict, actions, and dialogue.",
         "",
         "Requirements:",
-        `- Write exactly ${requestedSceneCount} scenes.`,
+        `- Write exactly ${requestedSceneCount} scenes for a YouTube Short.`,
+        "- Target a final spoken duration of roughly 45-60 seconds.",
+        "- Each scene should contain 1-3 dialogue lines.",
+        "- Keep each dialogue line to 12 words or fewer.",
+        "- Use compact scenes with a strong hook, escalating conflict, reveal/twist, and clean ending.",
+        "- Do not pad scenes with exposition; let actions, reactions, and short dialogue carry the story.",
         "- Each scene has a clear location, time of day, purpose, emotional beat, visible action, and consequence that leads into the next scene.",
         "- Use 2-4 recurring characters across the story. Characters must have stable names and personalities.",
         "- Dialogue should carry the scene. Avoid narrator exposition.",
@@ -100,7 +105,7 @@ export async function POST(request: Request) {
         "character_bible must stay as the top-level JSON array described above; do not rename it or move it inside scenes.",
         `Create exactly ${requestedSceneCount} scenes. Do not create more or fewer.`,
         "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
-        "dialogue is an array of objects: speaker, character_id, line, emotion. Every scene must contain at least one dialogue line for this production pass.",
+        "dialogue is an array of objects: speaker, character_id, line, emotion. Every scene must contain 1-3 short dialogue lines for this production pass.",
         "characters_present is an array of character_id values visible in the shot.",
         "reference_character_ids must contain every recurring character visible in the shot.",
         "narration_excerpt should be empty when dialogue and acting already carry the scene. Do not invent narration just to fill the field.",
@@ -114,7 +119,7 @@ export async function POST(request: Request) {
         "Prioritize readable acting shots: two-shots, over-the-shoulder dialogue, close-ups, reaction shots, and motivated establishing shots.",
         "Do not claim that any image, audio, or video asset has already been generated.",
         "If output length is constrained, prioritize a complete character_bible and exactly " + requestedSceneCount + " complete scenes over commentary.",
-        "Keep all dialogue lines short enough for natural speech.",
+        "Keep all dialogue lines to 12 words or fewer and natural for speech. Target 45-60 seconds total spoken dialogue across the six scenes.",
         "",
         "SCREENPLAY:",
         script,
