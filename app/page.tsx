@@ -18,8 +18,8 @@ const people = [
 ];
 
 const pipe = [
-  ["Story", "Build world + cast"], ["Screenplay", "Write dialogue"], ["Director", "Block actors"], ["Characters", "Generate keyframes"],
-  ["Video", "Animate art"], ["TTS", "Create voice"], ["Editing", "Render final"], ["Upload", "Publish"],
+  ["Story", "Build world + cast"], ["Screenplay", "Write short dialogue"], ["Director", "Block actors"], ["Characters", "Generate 9:16 keyframes"],
+  ["Video", "Animate art"], ["TTS", "Create voices"], ["Editing", "Render Short"], ["Upload", "Publish"],
 ];
 
 const aiPhaseLabel: Record<string, string> = {
@@ -542,7 +542,7 @@ export default function Page() {
       if (person.dept === "image" && aiPhase === "IMAGES") {
         const count = activeProject?.ai?.imageAssets?.length ?? 0;
         const total = activeProject?.totalScenes ?? 0;
-        return total ? `Generating drama keyframes · ${count}/${total}` : "Generating drama keyframes";
+        return total ? `Generating 9:16 drama keyframes · ${count}/${total}` : "Generating 9:16 drama keyframes";
       }
       return "Standing by";
     }
