@@ -73,16 +73,33 @@ export async function checkOmniRoute(): Promise<{ modelCount: number; models: st
   return { modelCount: models.length, models };
 }
 
-export async function generateWithOmniRoute(prompt: string, modelSlug?: string): Promise<OmniRouteResult> {
+export async function generateWithOmniRoute(
+  prompt: string,
+  modelSlug?: string,
+  options?: {
+    responseFormat?: Record<string, unknown>;
+    noCache?: boolean;
+  },
+): Promise<OmniRouteResult> {
   const model = modelSlug?.trim() || process.env.OMNIROUTE_MODEL?.trim() || DEFAULT_MODEL;
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: [{ role: "user", content: prompt }],
+    stream: false,
+  };
+
+  if (options?.responseFormat) body.response_format = options.responseFormat;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options?.noCache) headers["X-OmniRoute-No-Cache"] = "true";
 
   const response = await requestOmniRoute("/chat/completions", {
     method: "POST",
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      stream: false,
-    }),
+    headers,
+    body: JSON.stringify(body),
   });
 
   const data = await response.json().catch(() => ({})) as {
