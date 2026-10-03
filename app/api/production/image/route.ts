@@ -33,6 +33,21 @@ export async function POST(request: Request) {
       "The result should feel unmistakably cute and animated: rounded forms, adorable character design, expressive eyes, charming props, and polished cinematic 3D rendering.",
       characterBible ? "CHARACTER BIBLE (immutable; preserve these traits exactly):\n" + characterBible : "",
       "SCENE PROMPT:\n" + prompt,
+      Array.isArray(body?.charactersPresent) && body.charactersPresent.length
+        ? "VISIBLE CHARACTER IDS: " + body.charactersPresent.join(", ")
+        : "",
+      Array.isArray(body?.referenceCharacterIds) && body.referenceCharacterIds.length
+        ? "REFERENCE CHARACTER IDS: " + body.referenceCharacterIds.join(", ")
+        : "",
+      typeof body?.emotionalBeat === "string" && body.emotionalBeat.trim()
+        ? "EMOTIONAL BEAT: " + body.emotionalBeat.trim()
+        : "",
+      typeof body?.cameraAndComposition === "string" && body.cameraAndComposition.trim()
+        ? "DIRECTOR CAMERA: " + body.cameraAndComposition.trim()
+        : "",
+      typeof body?.characterActions === "string" && body.characterActions.trim()
+        ? "DIRECTOR ACTING: " + body.characterActions.trim()
+        : "",
       "Do not redesign recurring characters. Do not add random clothing, facial features, hair changes, logos, or accessories that contradict the Character Bible.",
       "STYLE LOCK: cute polished 3D animated film frame, chibi/toy-like proportions, soft rounded geometry, expressive friendly faces, high-quality 3D materials, subtle depth of field, cinematic lighting, warm playful family-friendly mood, coherent art direction across all scenes.",
       "ACTING DIRECTION: show the named characters interacting, reacting, looking at each other, holding relevant props, and expressing the emotional beat implied by the scene. Make emotions visually obvious and charming rather than stiff or neutral.",
