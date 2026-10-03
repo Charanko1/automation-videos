@@ -133,7 +133,7 @@ export async function POST(request: Request) {
       ].join("\n");
     }
 
-    let result = await generateWithOmniRoute(prompt);
+    let result: Awaited<ReturnType<typeof generateWithOmniRoute>>;
 
     if (stage === "director") {
       try {
@@ -146,7 +146,10 @@ export async function POST(request: Request) {
           "[AI Office] Structured Director request was not accepted; falling back to normal JSON prompting:",
           structuredError,
         );
+        result = await generateWithOmniRoute(prompt);
       }
+    } else {
+      result = await generateWithOmniRoute(prompt);
     }
 
     let dramaPlan = stage === "director"
