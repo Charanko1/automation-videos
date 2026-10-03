@@ -3,6 +3,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { generateWithOmniRouteVideo } from "../../../../lib/omniroute-video";
 import { generateWithKlingDirect } from "../../../../lib/kling-video";
+import { generateWithHFWan } from "../../../../lib/hf-wan-video";
 
 function safeName(value: string) {
   return (
@@ -156,7 +157,7 @@ export async function POST(request: Request) {
   }
 
   let sceneId = "scene";
-  const buildMarker = "I2V-ROUTE-BUILD-20261003-4";
+  const buildMarker = "I2V-ROUTE-BUILD-20261003-5";
   try {
     const body = await request.json().catch(() => ({}));
     const projectId =
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
     console.log(`[AI Office] ${buildMarker} · generating ${sceneId}`);
 
     const requestedProvider =
-      process.env.AI_OFFICE_I2V_PROVIDER?.trim().toLowerCase() || "kling";
+      process.env.AI_OFFICE_I2V_PROVIDER?.trim().toLowerCase() || "hf-wan";
 
     const duration =
       Number.isFinite(durationSeconds) && durationSeconds > 0
@@ -208,13 +209,17 @@ export async function POST(request: Request) {
         : 5;
 
     const result =
-      requestedProvider === "kling"
-        ? await generateWithKlingDirect(prompt, imageDataUrl, {
+      requestedProvider === "hf-wan"
+        ? await generateWithHFWan(prompt, imageDataUrl, {
             durationSeconds: duration,
           })
-        : await generateWithOmniRouteVideo(prompt, imageDataUrl, {
-            durationSeconds: duration,
-          });
+        : requestedProvider === "kling"
+          ? await generateWithKlingDirect(prompt, imageDataUrl, {
+              durationSeconds: duration,
+            })
+          : await generateWithOmniRouteVideo(prompt, imageDataUrl, {
+              durationSeconds: duration,
+            });
 
     const projectSlug = safeName(projectId);
     const sceneSlug = safeName(sceneId);
