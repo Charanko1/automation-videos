@@ -82,8 +82,14 @@ async function downloadVideo(url: string) {
   }
 
   const host = parsed.hostname;
+  const signedDate = parsed.searchParams.get("X-Amz-Date");
+  const signedExpires = parsed.searchParams.get("X-Amz-Expires");
+  const signedInfo =
+    signedDate && signedExpires
+      ? ` Signed URL: X-Amz-Date=${signedDate}, X-Amz-Expires=${signedExpires}s.`
+      : "";
   throw new Error(
-    `Video artifact download failed (${lastStatus}) from ${host}.${lastDetail ? ` Upstream: ${lastDetail}` : ""}`,
+    `Video artifact download failed (${lastStatus}) from ${host}.${signedInfo}${lastDetail ? ` Upstream: ${lastDetail}` : ""}`,
   );
 }
 
