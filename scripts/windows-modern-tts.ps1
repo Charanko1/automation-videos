@@ -21,41 +21,37 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 [void][Windows.Storage.Streams.IBuffer, Windows.Storage.Streams, ContentType=WindowsRuntime]
 [void][Windows.Storage.Streams.InputStreamOptions, Windows.Storage.Streams, ContentType=WindowsRuntime]
 
-$_taskMethods = @([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
-  $_.Name -eq "AsTask" -and $_.GetParameters().Count -eq 1
-})
+function Await-WinRtOperation {
+  param(
+    [Parameter(Mandatory = $true)]$Operation,
+    [int]$TimeoutSeconds = 60
+  )
 
-$asTaskGeneric = @($_taskMethods | Where-Object {
-  $_.IsGenericMethodDefinition -and
-  $_.GetParameters()[0].ParameterType.Name -eq "IAsyncOperation`1"
-}) | Select-Object -First 1
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 
-$asTaskGeneric2 = @($_taskMethods | Where-Object {
-  $_.IsGenericMethodDefinition -and
-  $_.GetParameters()[0].ParameterType.Name -eq "IAsyncOperationWithProgress`2"
-}) | Select-Object -First 1
+  while ($true) {
+    $status = $Operation.Status
 
-if (-not $asTaskGeneric) {
-  throw "WindowsRuntimeSystemExtensions.AsTask(IAsyncOperation<TResult>) was not found."
-}
+    if ([int]$status -eq 1) {
+      return $Operation.GetResults()
+    }
 
-function Await-WinRtOperation($WinRtTask, $ResultType) {
-  $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
-  $netTask = $asTask.Invoke($null, @($WinRtTask))
-  $netTask.Wait(-1) | Out-Null
-  return $netTask.Result
-}
+    if ([int]$status -eq 2) {
+      throw "WinRT speech operation was canceled."
+    }
 
-function Await-WinRtOperationWithProgress($WinRtTask, $ResultType1, $ResultType2) {
-  if (-not $asTaskGeneric2) {
-    throw "WindowsRuntimeSystemExtensions.AsTask(IAsyncOperationWithProgress<TResult,TProgress>) was not found."
+    if ([int]$status -eq 3) {
+      $errorCode = $Operation.ErrorCode
+      throw "WinRT speech operation failed. ErrorCode=$errorCode"
+    }
+
+    if ((Get-Date) -gt $deadline) {
+      throw "WinRT speech operation timed out after $TimeoutSeconds seconds."
+    }
+
+    Start-Sleep -Milliseconds 50
   }
-  $asTask = $asTaskGeneric2.MakeGenericMethod($ResultType1, $ResultType2)
-  $netTask = $asTask.Invoke($null, @($WinRtTask))
-  $netTask.Wait(-1) | Out-Null
-  return $netTask.Result
 }
-
 if (-not (Test-Path -LiteralPath $DialogueJsonPath)) {
   throw "Dialogue JSON was not found: $DialogueJsonPath"
 }
@@ -133,9 +129,8 @@ foreach ($item in $items) {
   $stream = $null
 
   try {
-    $stream = Await-WinRtOperation (
-      $synth.SynthesizeTextToStreamAsync($line)
-    ) ([Windows.Media.SpeechSynthesis.SpeechSynthesisStream])
+    $speechOperation = $synth.SynthesizeTextToStreamAsync($line)
+    $stream = Await-WinRtOperation $speechOperation
 
     if (-not $stream) {
       throw "Speech synthesis returned no stream for dialogue line $index."
@@ -154,13 +149,12 @@ foreach ($item in $items) {
       throw "Could not create a WinRT buffer for dialogue line $index."
     }
 
-    Await-WinRtOperationWithProgress (
-      $stream.ReadAsync(
-        $buffer,
-        $size,
-        [Windows.Storage.Streams.InputStreamOptions]::None
-      )
-    ) ([Windows.Storage.Streams.IBuffer]) ([uint32]) | Out-Null
+    $readOperation = $stream.ReadAsync(
+      $buffer,
+      $size,
+      [Windows.Storage.Streams.InputStreamOptions]::None
+    )
+    [void](Await-WinRtOperation $readOperation)
 
     [System.IO.File]::WriteAllBytes($file, $bytes)
   }
