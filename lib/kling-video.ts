@@ -84,7 +84,7 @@ async function klingFetch(path: string, init: RequestInit = {}) {
 }
 
 function rawBase64FromDataUrl(dataUrl: string) {
-  const match = dataUrl.match(/^data:image\\/[^;]+;base64,(.+)$/i);
+  const match = dataUrl.match(/^data:image\/[^;]+;base64,(.+)$/i);
   if (!match?.[1]) {
     throw new Error("Kling I2V source image must be a base64 data:image URL.");
   }
