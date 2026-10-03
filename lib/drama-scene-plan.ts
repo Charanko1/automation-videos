@@ -149,16 +149,44 @@ function serializeCharacterBible(value: unknown) {
 }
 
 function parseDialogue(value: unknown): AIProductionDialogue[] {
-  if (!Array.isArray(value)) return [];
+  const entries: unknown[] = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? [value]
+      : typeof value === "string"
+        ? value
+            .split(/\\r?\\n+/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+        : [];
 
-  return value
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
-    .map((entry) => ({
-      speaker: asString(entry.speaker ?? entry.character ?? entry.name),
-      characterId: asString(entry.character_id ?? entry.characterId) || undefined,
-      line: asString(entry.line ?? entry.text ?? entry.dialogue),
-      emotion: asString(entry.emotion ?? entry.feeling) || undefined,
-    }))
+  return entries
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const match =
+          entry.match(/^\\s*([^:：]{1,60})\\s*[:：]\\s*(.+)\\s*$/s) ??
+          entry.match(/^\\s*[-*•]?\\s*([^\\-–—]{1,60})\\s*[-–—]\\s*(.+)\\s*$/s);
+
+        return {
+          speaker: match ? match[1].trim() : "",
+          characterId: undefined,
+          line: match ? match[2].trim() : "",
+          emotion: undefined,
+        };
+      }
+
+      if (!entry || typeof entry !== "object") {
+        return { speaker: "", characterId: undefined, line: "", emotion: undefined };
+      }
+
+      const record = entry as Record<string, unknown>;
+      return {
+        speaker: asString(record.speaker ?? record.character ?? record.name ?? record.character_name),
+        characterId: asString(record.character_id ?? record.characterId) || undefined,
+        line: asString(record.line ?? record.text ?? record.dialogue ?? record.content),
+        emotion: asString(record.emotion ?? record.feeling ?? record.mood) || undefined,
+      };
+    })
     .filter((entry) => Boolean(entry.speaker && entry.line));
 }
 
@@ -249,7 +277,13 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
         sceneId,
         purpose: asString(scene.purpose) || undefined,
         narrationExcerpt: asString(scene.narration_excerpt ?? scene.narrationExcerpt) || undefined,
-        dialogue: parseDialogue(scene.dialogue),
+        dialogue: parseDialogue(
+          scene.dialogue ??
+            scene.dialogues ??
+            scene.dialogue_lines ??
+            scene.dialogueLines ??
+            scene.lines,
+        ),
         charactersPresent: Array.isArray(scene.characters_present)
           ? scene.characters_present.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
           : Array.isArray(scene.charactersPresent)
@@ -268,7 +302,7 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
           : Array.isArray(scene.referenceCharacterIds)
             ? scene.referenceCharacterIds.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
             : undefined,
-        aspectRatio: asString(scene.aspect_ratio ?? scene.aspectRatio) || "16:9",
+        aspectRatio: asString(scene.aspect_ratio ?? scene.aspectRatio) || "9:16",
         imagePriority: asString(scene.image_priority ?? scene.imagePriority) || undefined,
       };
     })
