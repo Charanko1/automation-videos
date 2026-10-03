@@ -67,12 +67,13 @@ export async function POST(request: Request) {
     );
   }
 
+  let sceneId = "scene";
   try {
     const body = await request.json().catch(() => ({}));
     const projectId =
       typeof body?.projectId === "string" ? body.projectId.trim() : "";
-    const sceneId =
-      typeof body?.sceneId === "string" ? body.sceneId.trim() : "";
+    sceneId =
+      typeof body?.sceneId === "string" ? body.sceneId.trim() : "scene";
     const sourceAssetUrl =
       typeof body?.sourceAssetUrl === "string"
         ? body.sourceAssetUrl.trim()
@@ -156,7 +157,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Video generation failed.";
     console.error("[AI Office] I2V failed:", message);
     return NextResponse.json(
-      { ok: false, error: `I2V failed for ${typeof bodySceneIdPlaceholder === "string" ? bodySceneIdPlaceholder : "scene"}. ${message}` },
+      { ok: false, error: `I2V failed for ${sceneId}. ${message}` },
       { status: 502 },
     );
   }
