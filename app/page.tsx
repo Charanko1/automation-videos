@@ -377,8 +377,9 @@ export default function Page() {
             referenceCharacterIds: scenePlan.referenceCharacterIds ?? [],
             charactersPresent: scenePlan.charactersPresent ?? [],
             emotionalBeat: scenePlan.emotionalBeat ?? "",
-            cameraAndComposition: scenePlan.cameraAndComposition ?? "",
+            cameraAndComposition: "static locked-off shot, no zoom, no pan, no camera movement",
             characterActions: scenePlan.characterActions ?? "",
+            motion: scenePlan.motion ?? "",
           }),
         });
         const imageData = await imageResponse.json().catch(() => ({}));
@@ -629,7 +630,8 @@ export default function Page() {
               {(activeProject.ai.scenePlans ?? []).map((scenePlan) => (
                 <div key={scenePlan.sceneId} style={{padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
                   <div style={{fontWeight:800,fontSize:11}}>{scenePlan.sceneId} · {scenePlan.emotionalBeat ?? "kid-friendly beat"}</div>
-                  <div className="muted" style={{fontSize:10,marginTop:4}}>{scenePlan.charactersPresent?.join(" + ") || "characters pending"} · {scenePlan.cameraAndComposition ?? "shot unspecified"}</div>
+                  <div className="muted" style={{fontSize:10,marginTop:4}}>{scenePlan.charactersPresent?.join(" + ") || "characters pending"} · static locked-off shot</div>
+                  <div className="muted" style={{fontSize:10,marginTop:4}}>{scenePlan.motion ?? "timed character motion pending"}</div>
                   {(scenePlan.dialogue ?? []).map((line, lineIndex) => (
                     <div key={lineIndex} style={{marginTop:6,fontSize:11}}>
                       <b>{line.speaker}:</b> {line.line}
