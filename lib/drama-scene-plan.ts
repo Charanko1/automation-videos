@@ -148,14 +148,43 @@ function serializeCharacterBible(value: unknown) {
   }
 }
 
+function nestedName(value: unknown) {
+  if (typeof value === "string") return value.trim();
+
+  if (!value || typeof value !== "object") return "";
+
+  const record = value as Record<string, unknown>;
+  return asString(
+    record.name ??
+      record.speaker ??
+      record.character_name ??
+      record.characterName ??
+      record.id ??
+      record.character_id ??
+      record.characterId,
+  );
+}
+
 function parseDialogue(value: unknown): AIProductionDialogue[] {
   const entries: unknown[] = Array.isArray(value)
     ? value
     : value && typeof value === "object"
-      ? [value]
+      ? Object.entries(value as Record<string, unknown>).flatMap(([key, entry]) => {
+          if (typeof entry === "string") {
+            return [{ speaker: key, line: entry }];
+          }
+          if (Array.isArray(entry)) {
+            return entry.map((item) =>
+              item && typeof item === "object"
+                ? { ...(item as Record<string, unknown>), speaker: (item as Record<string, unknown>).speaker ?? key }
+                : { speaker: key, line: String(item ?? "") },
+            );
+          }
+          return [entry];
+        })
       : typeof value === "string"
         ? value
-            .split(/\\r?\\n+/)
+            .split(/\r?\n+/)
             .map((line) => line.trim())
             .filter(Boolean)
         : [];
@@ -164,8 +193,8 @@ function parseDialogue(value: unknown): AIProductionDialogue[] {
     .map((entry) => {
       if (typeof entry === "string") {
         const match =
-          entry.match(/^\\s*([^:：]{1,60})\\s*[:：]\\s*(.+)\\s*$/s) ??
-          entry.match(/^\\s*[-*•]?\\s*([^\\-–—]{1,60})\\s*[-–—]\\s*(.+)\\s*$/s);
+          entry.match(/^\s*([^:：]{1,60})\s*[:：]\s*(.+)\s*$/s) ??
+          entry.match(/^\s*[-*•]?\s*([^\-–—]{1,60})\s*[-–—]\s*(.+)\s*$/s);
 
         return {
           speaker: match ? match[1].trim() : "",
@@ -180,14 +209,72 @@ function parseDialogue(value: unknown): AIProductionDialogue[] {
       }
 
       const record = entry as Record<string, unknown>;
+      const characterValue = record.character ?? record.character_data ?? record.characterData;
       return {
-        speaker: asString(record.speaker ?? record.character ?? record.name ?? record.character_name),
-        characterId: asString(record.character_id ?? record.characterId) || undefined,
-        line: asString(record.line ?? record.text ?? record.dialogue ?? record.content),
+        speaker: nestedName(record.speaker) || nestedName(characterValue) || nestedName(record.name) || nestedName(record.character_name),
+        characterId: asString(record.character_id ?? record.characterId) ||
+          nestedName(characterValue) || undefined,
+        line: asString(
+          record.line ??
+            record.text ??
+            record.spoken_line ??
+            record.spokenLine ??
+            record.dialogue ??
+            record.content ??
+            record.value,
+        ),
         emotion: asString(record.emotion ?? record.feeling ?? record.mood) || undefined,
       };
     })
     .filter((entry) => Boolean(entry.speaker && entry.line));
+}
+
+function findDialogueValue(scene: Record<string, unknown>) {
+  const directKeys = [
+    "dialogue",
+    "dialogues",
+    "dialogue_lines",
+    "dialogueLines",
+    "spoken_lines",
+    "spokenLines",
+    "lines",
+  ];
+
+  for (const key of directKeys) {
+    if (scene[key] !== undefined) {
+      const parsed = parseDialogue(scene[key]);
+      if (parsed.length > 0) return parsed;
+    }
+  }
+
+  const queue: unknown[] = Object.values(scene);
+  const seen = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) queue.push(item);
+      continue;
+    }
+
+    const record = value as Record<string, unknown>;
+
+    for (const key of directKeys) {
+      if (record[key] !== undefined) {
+        const parsed = parseDialogue(record[key]);
+        if (parsed.length > 0) return parsed;
+      }
+    }
+
+    for (const child of Object.values(record)) {
+      if (child && typeof child === "object") queue.push(child);
+    }
+  }
+
+  return [];
 }
 
 function buildVisualPrompt(prompt: string, scene: Record<string, unknown>) {
@@ -277,13 +364,7 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
         sceneId,
         purpose: asString(scene.purpose) || undefined,
         narrationExcerpt: asString(scene.narration_excerpt ?? scene.narrationExcerpt) || undefined,
-        dialogue: parseDialogue(
-          scene.dialogue ??
-            scene.dialogues ??
-            scene.dialogue_lines ??
-            scene.dialogueLines ??
-            scene.lines,
-        ),
+        dialogue: findDialogueValue(scene),
         charactersPresent: Array.isArray(scene.characters_present)
           ? scene.characters_present.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
           : Array.isArray(scene.charactersPresent)
