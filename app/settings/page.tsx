@@ -195,7 +195,7 @@ export default function SettingsPage() {
         {[
           ["OmniRoute · Free Provider Router","Primary AI gateway for story development, screenplay, and direction"],
           ["Gemi · 3D Character & Scene Artist","Vertical 9:16 cute 3D animation, character continuity, expressive acting, and scene keyframes"],
-          ["Local renderer","Stage for character dialogue, clean subtitles, camera-aware motion, and final assembly"],
+          ["Vox · Indonesian TTS","Windows Speech Synthesis using an installed id-ID voice; subtitles and spoken dialogue stay in Bahasa Indonesia"],
           ["YouTube","Publishing integration; not an AI provider"],
         ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "OmniRoute · Free Provider Router" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
         <div className="notice" style={{marginTop:10}}>This workspace uses OmniRoute as the text gateway for Rhea, Wri, and Dira. The intended output is a character-driven drama: story world → screenplay → acting/blocking → character keyframes → dialogue → final edit. Connect at least one provider in OmniRoute and set OMNIROUTE_BASE_URL, OMNIROUTE_API_KEY, and OMNIROUTE_MODEL in .env.local. Gemi uses the configured image provider and the built-in 3D visual profile.</div>
