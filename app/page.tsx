@@ -605,7 +605,7 @@ export default function Page() {
         </div>
 
         <div className="card"><div className="title"><Sparkles size={14}/> OmniRoute AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>OmniRoute handles Story → Screenplay → Director. Gemi then turns the actor blocking into 16:9 cinematic drama keyframes.</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>OmniRoute handles Story → Screenplay → Director. Gemi then turns the actor blocking into cute 9:16 animated drama keyframes.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
