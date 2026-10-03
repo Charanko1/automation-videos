@@ -499,16 +499,6 @@ export async function renderLocalVideo(input: {
 
   await fs.writeFile(srtPath, srt, "utf8");
 
-  const imageAssetMap = new Map<string, SceneImageAsset>();
-  for (const asset of Array.isArray(input.imageAssets) ? input.imageAssets : []) {
-    const sceneId =
-      typeof asset.sceneId === "string" && asset.sceneId.trim()
-        ? asset.sceneId.trim()
-        : null;
-
-    if (sceneId) imageAssetMap.set(sceneId, asset);
-  }
-
   const videoAssetMap = new Map<string, SceneVideoAsset>();
   for (const asset of Array.isArray(input.videoAssets) ? input.videoAssets : []) {
     const sceneId =
@@ -520,7 +510,6 @@ export async function renderLocalVideo(input: {
   }
 
   const fallbackVideos = Array.isArray(input.videoAssets) ? input.videoAssets : [];
-  const fallbackImages = Array.isArray(input.imageAssets) ? input.imageAssets : [];
   const mediaDir = path.join(outDir, "scene-media");
 
   await fs.mkdir(mediaDir, { recursive: true });
