@@ -194,11 +194,12 @@ export default function SettingsPage() {
       <div className="card"><div className="title"><Shield size={14}/> AI PROVIDER CONFIGURATION</div>
         {[
           ["OmniRoute · Free Provider Router","Primary AI gateway for story development, screenplay, and direction"],
-          ["Gemi · 3D Character & Scene Artist","Vertical 9:16 cute 3D animation, character continuity, expressive acting, and scene keyframes"],
+          ["Gemi · 3D Character & Scene Artist","Vertical 9:16 preschool source keyframes; one location, one action, no collage"],
+          ["GPT · Video Artist","OmniRoute image-to-video stage; animates each Gemi keyframe using the Director timed-motion plan"],
           ["Vox · Indonesian TTS","Windows Speech Synthesis using an installed id-ID voice; subtitles and spoken dialogue stay in Bahasa Indonesia"],
           ["YouTube","Publishing integration; not an AI provider"],
         ].map(([name,desc]) => <div className="provider-row" key={name}><div><div className="ename">{name}</div><div className="muted">{desc}</div></div><span className="provider-state"><span className="state-dot"/>{name === "OmniRoute · Free Provider Router" ? "CONFIGURED VIA ENV" : name === "Cloudflare Workers AI" ? "CONFIGURED VIA ENV" : "CONFIGURATION REQUIRED"}</span></div>)}
-        <div className="notice" style={{marginTop:10}}>Rhea, Wri, and Dira prefer the connected ChatGPT plan brain when available, with OmniRoute as fallback. The intended output is a character-driven drama: story world → screenplay → acting/blocking → character keyframes → dialogue → final edit. ChatGPT credentials are stored locally; OmniRoute remains available through its server-side configuration. Gemi uses the configured image provider and the built-in 3D visual profile.</div>
+        <div className="notice" style={{marginTop:10}}>Rhea, Wri, and Dira prefer the connected ChatGPT plan brain with OmniRoute as fallback. Gemi creates one clean 9:16 source frame per scene. GPT then sends each frame plus the Director timed-motion plan to OmniRoute I2V. Final rendering is blocked until every scene has a real generated video, so a still-image slideshow cannot be mistaken for animation.</div>
       </div>
       <div className="card"><div className="title"><Bell size={14}/> OPERATIONS POLICY</div>
         <div className="notice"><Check size={14}/> Provider limits should pause the affected queue on the server. The client Office view only reflects the state supplied by the production engine.</div>
