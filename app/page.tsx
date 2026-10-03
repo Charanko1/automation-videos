@@ -14,7 +14,7 @@ const people = [
   { id: "dira", name: "Dira", role: "Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "OmniRoute Image → Cloudflare fallback", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "Local FFmpeg · I2V-ready", dept: "video", color: "#72c7ff" },
-  { id: "vox", name: "Vox", role: "Dialogue Voice", provider: "Windows Speech Synthesis", dept: "tts", color: "#ff8b94" },
+  { id: "vox", name: "Vox", role: "Indonesian Dialogue Voice", provider: "Windows Speech Synthesis · id-ID", dept: "tts", color: "#ff8b94" },
 ];
 
 const pipe = [
@@ -431,7 +431,7 @@ export default function Page() {
   const renderFinalVideo = async () => {
     if (!activeProject?.ai?.script || !activeProject.ai.director || rendering) return;
     setRendering(true);
-    setToast("Local renderer: generating character dialogue and assembling the drama…");
+    setToast("Vox · Indonesian id-ID TTS + FFmpeg is assembling the drama…");
     updateActiveAI({ render: { status: "RENDERING", error: undefined } });
 
     try {
@@ -458,7 +458,7 @@ export default function Page() {
           generatedAt: new Date().toISOString(),
         },
       });
-      setToast("Video rendered successfully. Open Library or preview it below.");
+      setToast("Video rendered successfully with Indonesian character voices.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Local render failed.";
       updateActiveAI({ render: { status: "FAILED", error: message } });
