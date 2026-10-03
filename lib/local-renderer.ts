@@ -206,6 +206,7 @@ function cameraMotion(scene: AIProductionScene) {
 async function createDialogueAudio(options: {
   tempDir: string;
   outputDir: string;
+  language: "id-ID";
   lines: Array<{
     index: number;
     sceneId: string;
@@ -214,7 +215,7 @@ async function createDialogueAudio(options: {
     line: string;
   }>;
 }) {
-  const { tempDir, outputDir, lines } = options;
+  const { tempDir, outputDir, language, lines } = options;
 
   const dialogueJsonPath = path.join(
     tempDir,
@@ -239,18 +240,25 @@ async function createDialogueAudio(options: {
       escapePowerShellSingle(dialogueJsonPath) +
       "' | ConvertFrom-Json",
     "$items = @($parsedItems | ForEach-Object { $_ })",
-    "$voiceNames = @($synth.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo.Name } | Where-Object { $_ })",
+    "$voiceInfos = @($synth.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo })",
+    "$voiceNames = @($voiceInfos | ForEach-Object { $_.Name } | Where-Object { $_ })",
+    "$targetVoices = @($voiceInfos | Where-Object { $_.Culture.Name -eq 'id-ID' -or $_.Culture.Name -like 'id-*' })",
+    "$targetVoiceNames = @($targetVoices | ForEach-Object { $_.Name } | Where-Object { $_ })",
+    "if ($targetVoiceNames.Count -eq 0) {",
+    "  $allVoiceInfo = ($voiceInfos | ForEach-Object { $_.Name + ' [' + $_.Culture.Name + ']' }) -join '; '",
+    "  throw ('No Indonesian Windows Speech voice is installed. Required culture: ' + $language + '. Installed voices: ' + $allVoiceInfo)",
+    "}",
     "$voiceMap = @{}",
     "$voiceIndex = 0",
     "$lineCounter = 0",
     "$outDir = '" + escapePowerShellSingle(audioDir) + "'",
     "$null = New-Item -ItemType Directory -Force -Path $outDir",
-    "Write-Output ('TTS items=' + $items.Count + '; installedVoices=' + $voiceNames.Count + '; outDir=' + $outDir)",
+    "Write-Output ('TTS language=' + $language + '; items=' + $items.Count + '; installedVoices=' + $voiceNames.Count + '; targetVoices=' + $targetVoiceNames.Count + '; outDir=' + $outDir)",
     "foreach ($item in $items) {",
     "  $speaker = [string]$item.speaker",
     "  if (-not $voiceMap.ContainsKey($speaker)) {",
     "    if ($voiceNames.Count -gt 0) {",
-    "      $voiceMap[$speaker] = $voiceNames[$voiceIndex % $voiceNames.Count]",
+    "      $voiceMap[$speaker] = $targetVoiceNames[$voiceIndex % $targetVoiceNames.Count]",
     "      $voiceIndex++",
     "    } else {",
     "      $voiceMap[$speaker] = ''",
@@ -413,6 +421,7 @@ export async function renderLocalVideo(input: {
     await createDialogueAudio({
       tempDir,
       outputDir: outDir,
+      language: "id-ID",
       lines: dramaLines,
     });
 
