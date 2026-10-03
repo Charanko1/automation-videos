@@ -321,6 +321,18 @@ function looksLikeScene(value: unknown) {
   );
 }
 
+function sceneCollection(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value.filter(looksLikeScene);
+  }
+
+  if (!value || typeof value !== "object") return [];
+
+  const values = Object.values(value);
+  const sceneValues = values.filter(looksLikeScene);
+  return sceneValues.length > 0 ? sceneValues : [];
+}
+
 function findSceneArray(parsedValues: unknown[]) {
   const sceneKeys = [
     "scenes",
@@ -335,19 +347,22 @@ function findSceneArray(parsedValues: unknown[]) {
   ];
 
   for (const value of parsedValues) {
-    if (Array.isArray(value) && value.some(looksLikeScene)) {
-      return value;
-    }
+    const directWhole = sceneCollection(value);
+    if (directWhole.length > 0) return directWhole;
 
-    const direct = deepFindByKey(value, sceneKeys);
-    if (Array.isArray(direct) && direct.some(looksLikeScene)) {
-      return direct;
+    for (const key of sceneKeys) {
+      const directValue =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as Record<string, unknown>)[key]
+          : undefined;
+
+      const directScenes = sceneCollection(directValue);
+      if (directScenes.length > 0) return directScenes;
     }
 
     const nested = deepFindByKey(value, ["scene"]);
-    if (Array.isArray(nested) && nested.some(looksLikeScene)) {
-      return nested;
-    }
+    const nestedScenes = sceneCollection(nested);
+    if (nestedScenes.length > 0) return nestedScenes;
   }
 
   return [];
