@@ -1,5 +1,3 @@
-import { SignJWT } from "jose";
-
 const KLING_BASE_URL =
   process.env.KLING_BASE_URL?.trim().replace(/\/+$/, "") ||
   "https://api-singapore.klingai.com";
@@ -45,28 +43,15 @@ async function getKlingToken() {
   const apiKey = process.env.KLING_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(
-      "KLING_API_KEY is required when AI_OFFICE_I2V_PROVIDER=kling.",
+      "KLING_API_KEY is required. Create an API Key at https://kling.ai/dev/api-key and put it in .env.local.",
     );
   }
 
-  // Current Kling API keys are sent directly as Bearer tokens. Some legacy
-  // accounts may still expose AccessKey/SecretKey credentials, so support the
-  // legacy JWT path too when those variables are configured.
-  const accessKey = process.env.KLING_ACCESS_KEY?.trim();
-  const secretKey = process.env.KLING_SECRET_KEY?.trim();
-
-  if (accessKey && secretKey) {
-    const secret = new TextEncoder().encode(secretKey);
-    return await new SignJWT({ iss: accessKey })
-      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-      .setNotBefore("0s")
-      .setExpirationTime("30m")
-      .sign(secret);
-  }
-
+  // Kling's current API requires API Key authentication. Do not fall back to
+  // legacy AccessKey/SecretKey credentials because the current API rejects
+  // AK/SK authentication.
   return apiKey;
 }
-
 async function klingFetch(path: string, init: RequestInit = {}) {
   const token = await getKlingToken();
   const headers = new Headers(init.headers);
