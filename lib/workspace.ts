@@ -25,6 +25,7 @@ export type AIProductionScene = {
   emotionalBeat?: string;
   visualPrompt: string;
   cameraAndComposition?: string;
+  motion?: string;
   lightingAndColor?: string;
   environment?: string;
   characterActions?: string;
