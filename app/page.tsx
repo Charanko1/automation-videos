@@ -521,8 +521,9 @@ export default function Page() {
         characterBible,
         scenePlans: directorScenes,
         imageAssets: generatedAssets,
+        videoAssets: generatedVideoAssets,
         model: activeProject.ai?.model,
-        textProvider: "ChatGPT plan",
+        textProvider: activeProject.ai?.textProvider ?? "ChatGPT plan",
         error: undefined,
       });
 
@@ -591,15 +592,16 @@ export default function Page() {
       setToast("Create or activate a project before starting production.");
       return;
     }
-    if (scene >= activeProject.totalScenes) {
-      setToast("This project is already completed.");
-      return;
-    }
-
     const needsAI =
       (activeProject.ai?.phase ?? "IDLE") !== "COMPLETED" ||
       (activeProject.ai?.imageAssets?.length ?? 0) < activeProject.totalScenes ||
       (activeProject.ai?.videoAssets?.length ?? 0) < activeProject.totalScenes;
+
+    if (scene >= activeProject.totalScenes && !needsAI) {
+      setToast("This project is already completed.");
+      return;
+    }
+
     if (needsAI) {
       const completed = await runAIPipeline();
       if (!completed) return;
@@ -644,7 +646,7 @@ export default function Page() {
 
   const status = (dept: string) => {
     if (aiRunning) {
-      const aiStage = { research: "RESEARCH", script: "SCRIPT", director: "DIRECTOR", image: "IMAGES" }[dept];
+      const aiStage = { research: "RESEARCH", script: "SCRIPT", director: "DIRECTOR", image: "IMAGES", video: "VIDEO" }[dept];
       if (aiStage === aiPhase) return "Working";
       return "Idle";
     }
@@ -661,7 +663,12 @@ export default function Page() {
       if (person.dept === "image" && aiPhase === "IMAGES") {
         const count = activeProject?.ai?.imageAssets?.length ?? 0;
         const total = activeProject?.totalScenes ?? 0;
-        return total ? `Generating kids 9:16 keyframes · ${count}/${total}` : "Generating 9:16 drama keyframes";
+        return total ? `Generating kids 9:16 keyframes · ${count}/${total}` : "Generating 9:16 kids keyframes";
+      }
+      if (person.dept === "video" && aiPhase === "VIDEO") {
+        const count = activeProject?.ai?.videoAssets?.length ?? 0;
+        const total = activeProject?.totalScenes ?? 0;
+        return total ? `Animating scenes with I2V · ${count}/${total}` : "Animating scene motion with I2V";
       }
       return "Standing by";
     }
@@ -709,7 +716,7 @@ export default function Page() {
       <aside className="side right">
         <div className="card"><div className="title"><Gauge size={14}/> Production Pipeline</div>
           {pipe.map((item, i) => {
-            const aiStageIndex = { RESEARCH: 0, SCRIPT: 1, DIRECTOR: 2, IMAGES: 3 }[aiPhase as "RESEARCH" | "SCRIPT" | "DIRECTOR" | "IMAGES"];
+            const aiStageIndex = { RESEARCH: 0, SCRIPT: 1, DIRECTOR: 2, IMAGES: 3, VIDEO: 4 }[aiPhase as "RESEARCH" | "SCRIPT" | "DIRECTOR" | "IMAGES" | "VIDEO"];
             const done = activeProject
               ? aiRunning
                 ? i < (aiStageIndex ?? -1)
