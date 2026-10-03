@@ -21,6 +21,11 @@ type SceneImageAsset = {
   sceneId?: string;
 };
 
+type SceneVideoAsset = {
+  assetUrl: string;
+  sceneId?: string;
+};
+
 function resolvePublicAssetPath(assetUrl: string) {
   const clean = assetUrl.split("?")[0].split("#")[0];
   if (!clean.startsWith("/generated/")) return null;
@@ -282,6 +287,7 @@ export async function renderLocalVideo(input: {
   director: string;
   model?: string;
   imageAssets?: SceneImageAsset[];
+  videoAssets?: SceneVideoAsset[];
 }) {
   if (process.platform !== "win32") {
     throw new Error(
@@ -493,53 +499,68 @@ export async function renderLocalVideo(input: {
 
   await fs.writeFile(srtPath, srt, "utf8");
 
-  const assetMap = new Map<string, SceneImageAsset>();
-  for (const asset of Array.isArray(input.imageAssets)
-    ? input.imageAssets
-    : []) {
+  const imageAssetMap = new Map<string, SceneImageAsset>();
+  for (const asset of Array.isArray(input.imageAssets) ? input.imageAssets : []) {
     const sceneId =
       typeof asset.sceneId === "string" && asset.sceneId.trim()
         ? asset.sceneId.trim()
         : null;
 
-    if (sceneId) assetMap.set(sceneId, asset);
+    if (sceneId) imageAssetMap.set(sceneId, asset);
   }
 
-  const fallbackAssets = Array.isArray(input.imageAssets)
-    ? input.imageAssets
-    : [];
-  const imageDir = path.join(outDir, "scene-images");
+  const videoAssetMap = new Map<string, SceneVideoAsset>();
+  for (const asset of Array.isArray(input.videoAssets) ? input.videoAssets : []) {
+    const sceneId =
+      typeof asset.sceneId === "string" && asset.sceneId.trim()
+        ? asset.sceneId.trim()
+        : null;
 
-  await fs.mkdir(imageDir, { recursive: true });
+    if (sceneId) videoAssetMap.set(sceneId, asset);
+  }
+
+  const fallbackVideos = Array.isArray(input.videoAssets) ? input.videoAssets : [];
+  const fallbackImages = Array.isArray(input.imageAssets) ? input.imageAssets : [];
+  const mediaDir = path.join(outDir, "scene-media");
+
+  await fs.mkdir(mediaDir, { recursive: true });
 
   const clipPaths: string[] = [];
-  let generatedImageCount = 0;
+  let generatedVideoCount = 0;
 
   for (let sceneIndex = 0; sceneIndex < plan.scenes.length; sceneIndex += 1) {
     const scene = plan.scenes[sceneIndex];
-    const asset = assetMap.get(scene.sceneId) ?? fallbackAssets[sceneIndex];
+    const videoAsset =
+      videoAssetMap.get(scene.sceneId) ?? fallbackVideos[sceneIndex];
 
-    if (!asset) continue;
-
-    const imagePath = resolvePublicAssetPath(asset.assetUrl);
-    if (!imagePath) continue;
-
-    try {
-      await fs.access(imagePath);
-    } catch {
-      continue;
+    if (!videoAsset?.assetUrl) {
+      throw new Error(
+        `Scene ${scene.sceneId} has no generated I2V video. Run the GPT Video Artist stage before rendering.`,
+      );
     }
 
-    const sceneCues = cues.filter(
-      (cue) => cue.sceneId === scene.sceneId,
-    );
+    const videoPath = resolvePublicAssetPath(videoAsset.assetUrl);
+    if (!videoPath) {
+      throw new Error(
+        `Scene ${scene.sceneId} has an invalid generated video asset path.`,
+      );
+    }
+
+    try {
+      await fs.access(videoPath);
+    } catch {
+      throw new Error(
+        `Generated I2V video for ${scene.sceneId} is missing on disk. Regenerate the Video Artist stage.`,
+      );
+    }
+
+    const sceneCues = cues.filter((cue) => cue.sceneId === scene.sceneId);
 
     const clipDuration =
       sceneCues.length > 0
         ? Math.max(
             0.8,
-            sceneCues[sceneCues.length - 1].end -
-              sceneCues[0].start,
+            sceneCues[sceneCues.length - 1].end - sceneCues[0].start,
           )
         : Math.max(
             1.2,
@@ -547,26 +568,28 @@ export async function renderLocalVideo(input: {
           );
 
     const clipPath = path.join(
-      imageDir,
+      mediaDir,
       String(sceneIndex + 1).padStart(3, "0") + ".mp4",
     );
 
-    const imageFilter =
+    const videoFilter =
       "scale=1080:1920:force_original_aspect_ratio=decrease," +
       "pad=1080:1920:(ow-iw)/2:(oh-ih)/2," +
       "format=yuv420p";
 
     await run("ffmpeg", [
       "-y",
-      "-loop",
-      "1",
+      "-stream_loop",
+      "-1",
       "-i",
-      imagePath,
+      videoPath,
       "-t",
       clipDuration.toFixed(3),
       "-vf",
-      imageFilter,
+      videoFilter,
       "-an",
+      "-r",
+      "30",
       "-c:v",
       "libx264",
       "-preset",
@@ -577,60 +600,20 @@ export async function renderLocalVideo(input: {
     ]);
 
     clipPaths.push(clipPath);
-    generatedImageCount += 1;
+    generatedVideoCount += 1;
   }
 
   if (clipPaths.length !== plan.scenes.length) {
     throw new Error(
-      "Drama render requires one generated image for every Director scene. Generate all scene keyframes before rendering.",
+      "Drama render requires one generated I2V video for every Director scene.",
     );
   }
 
   if (clipPaths.length === 0) {
     throw new Error(
-      "No usable generated scene images were found. Generate the drama keyframes before rendering.",
+      "No generated I2V scene videos were found. Run the Video Artist stage before rendering.",
     );
   }
-
-  const concatVideoPath = path.join(imageDir, "concat.txt");
-
-  await fs.writeFile(
-    concatVideoPath,
-    clipPaths
-      .map(
-        (file) =>
-          "file '" +
-          file.replace(/\\/g, "/").replace(/'/g, "''") +
-          "'",
-      )
-      .join("\n") + "\n",
-    "utf8",
-  );
-
-  const slideshowPath = path.join(
-    imageDir,
-    "drama-slideshow.mp4",
-  );
-
-  await run("ffmpeg", [
-    "-y",
-    "-f",
-    "concat",
-    "-safe",
-    "0",
-    "-i",
-    concatVideoPath,
-    "-an",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-pix_fmt",
-    "yuv420p",
-    "-r",
-    "30",
-    slideshowPath,
-  ]);
 
   const subtitleFile = subtitlePathForFfmpeg(srtPath);
   const videoFilter =
@@ -691,9 +674,10 @@ export async function renderLocalVideo(input: {
     scenes: plan.scenes.length,
     dialogueLines: dramaLines.length,
     speakers,
-    imageScenes: generatedImageCount,
+    imageScenes: Array.isArray(input.imageAssets) ? input.imageAssets.length : 0,
+    videoScenes: generatedVideoCount,
     note:
-      "Local Kids Shorts assembly with Indonesian Windows Speech Synthesis, clean subtitles without speaker labels, static locked-off camera framing, and timed character-motion plans. AI character video motion is not applied yet.",
+      "Local Kids Shorts assembly with Indonesian Windows Speech Synthesis, clean subtitles, static locked-off camera framing, and actual generated I2V scene videos from the GPT Video Artist stage.",
     files: {
       screenplay: "screenplay.txt",
       director: "director-scene-plan.txt",
