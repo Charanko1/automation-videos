@@ -108,8 +108,9 @@ export async function POST(request: Request) {
         `Create exactly ${requestedSceneCount} scenes. Do not create more or fewer.`,
         "Each scene keys: scene_id, purpose, narration_excerpt, dialogue, characters_present, emotional_beat, visual_prompt_core, camera_and_composition, lighting_and_color, environment, character_actions, on_screen_text, asset_type, reference_character_ids, aspect_ratio, image_priority.",
         "Set aspect_ratio to \"9:16\" for every scene. This production is vertical-first for YouTube Shorts.",
-        "dialogue is an array of objects: speaker, character_id, line, emotion. Every scene must contain 1-3 short dialogue lines for this production pass.",
+        "dialogue is an array of objects: speaker, character_id, line, emotion. Prefer 1-3 short dialogue lines per scene for this production pass.",
         "Every dialogue line must be in Bahasa Indonesia (id-ID) because Vox will synthesize it with an Indonesian Windows voice.",
+        "A brief silent visual beat is allowed for at most one scene when it improves pacing, but the overall six-scene Short must contain dialogue."
         "characters_present is an array of character_id values visible in the shot.",
         "reference_character_ids must contain every recurring character visible in the shot.",
         "narration_excerpt should be empty when dialogue and acting already carry the scene. Do not invent narration just to fill the field.",
@@ -160,16 +161,13 @@ export async function POST(request: Request) {
 
       const dialogueLineCount = dramaPlan.scenes.reduce((count, scene) => count + (scene.dialogue?.length ?? 0), 0);
       const silentScenes = dramaPlan.scenes.filter((scene) => (scene.dialogue?.length ?? 0) === 0);
-      const missingDialogueSceneIds = silentScenes.map((scene) => scene.sceneId);
-      if (dialogueLineCount === 0 || silentScenes.length > 0) {
+      const silentSceneIds = silentScenes.map((scene) => scene.sceneId);
+      if (dialogueLineCount === 0) {
         return NextResponse.json(
           {
             ok: false,
-            error:
-              silentScenes.length > 0
-                ? `Director returned ${silentScenes.length} scene(s) without parseable dialogue (${missingDialogueSceneIds.join(", ")}). The parser now accepts array, object, and speaker: line dialogue formats; regenerate the Director stage if the scene is genuinely silent.`
-                : "Director returned no parseable dialogue lines. Regenerate the director stage with character dialogue.",
-            silentSceneIds: missingDialogueSceneIds,
+            error: "Director returned no parseable dialogue lines. Regenerate the director stage with character dialogue.",
+            silentSceneIds,
           },
           { status: 502 },
         );
