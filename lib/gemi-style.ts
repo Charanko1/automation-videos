@@ -7,11 +7,17 @@ export const GEMI_VISUAL_PROFILE = [
   "Color direction: cheerful controlled color palette, warm highlights, gentle contrast, saturated accents without neon overload.",
   "Lighting: soft cinematic key light, gentle fill, soft rim light, subtle volumetric light, pleasant depth of field.",
   "World design: cozy miniature environments, charming props, rounded furniture, visually rich but uncluttered backgrounds.",
-  "Acting: exaggerated but natural animation poses, clear eye-lines, readable hand gestures, strong facial emotion, visible character relationships.",
+  "Acting: dynamic animation keyframes, exaggerated but natural poses, clear weight shifts, bent knees/elbows, asymmetrical silhouettes, readable hand gestures, strong facial emotion, visible character relationships.",
+  "Motion-first staging: every frame should capture a moment DURING an action, not before or after it. Use movement verbs such as reaching, turning, running, stopping, grabbing, pointing, hugging, recoiling, leaning, stepping, opening, closing, or handing an object.",
+  "Expression-first posing: face, torso, arms, and gaze must communicate the same emotional beat. Avoid mannequin-like neutral posture.",
+  "Composition energy: prefer diagonal lines, layered foreground/midground, varied character heights, and clear subject separation. Avoid perfectly symmetrical front-facing poses.",
+
   "Framing: 9:16 vertical composition designed for a phone screen; keep faces and important props large enough to read immediately.",
   "Continuity lock: preserve face shape, eye shape, hair/head features, body proportions, signature clothing, footwear, accessories, colors, props, and overall rendering style across every scene.",
   "Scene identity: each image must feel like the next shot from the same animated movie, with consistent world scale and art direction.",
   "Priority: character readability and emotional acting first, then environment detail.",
+  "Default shot behavior: treat the image as an animation keyframe from a moving scene. Freeze an expressive instant with visible action, interaction, or reaction.",
+
 ].join("\n");
 
 export const GEMI_NEGATIVE_PROFILE = [
@@ -40,4 +46,14 @@ export const GEMI_NEGATIVE_PROFILE = [
   "random costume changes",
   "different face",
   "different hairstyle",
+  "static portrait",
+  "passport photo",
+  "studio pose",
+  "standing straight",
+  "arms at sides",
+  "stiff mannequin pose",
+  "symmetrical front-facing pose",
+  "emotionless face",
+  "frozen neutral pose",
+  "empty hands when an action is specified",
 ].join(", ");
