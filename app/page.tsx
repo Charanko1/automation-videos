@@ -13,7 +13,7 @@ const people = [
   { id: "wri", name: "Wri", role: "Kids Storyboard Writer", provider: "ChatGPT plan → OmniRoute fallback", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Kids Prompt Director", provider: "ChatGPT plan → OmniRoute fallback", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "ChatGPT Image → OmniRoute → Cloudflare", dept: "image", color: "#68dcae" },
-  { id: "gpt", name: "GPT", role: "Video Artist", provider: "OmniRoute I2V · configurable model", dept: "video", color: "#72c7ff" },
+  { id: "gpt", name: "GPT", role: "Video Artist", provider: "Novita Kling v3.0 STD I2V", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Indonesian Dialogue Voice", provider: "Windows Speech Synthesis · id-ID", dept: "tts", color: "#ff8b94" },
 ];
 
