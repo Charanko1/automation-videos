@@ -45,7 +45,7 @@ export type AIImageAsset = {
 
 export type AIProduction = {
   phase: AIPipelinePhase;
-  pipelineVersion?: "drama-v2";
+  pipelineVersion?: "drama-v2" | "kids-shorts-v1";
   textProvider?: "ChatGPT plan" | "OmniRoute";
   research?: string;
   script?: string;
