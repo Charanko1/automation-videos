@@ -3,7 +3,6 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { getDramaDialogue, parseDirectorPlan } from "./drama-scene-plan";
-import type { AIProductionScene } from "./workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -14,11 +13,6 @@ type SceneCue = {
   text: string;
   speaker: string;
   characterId?: string;
-};
-
-type SceneImageAsset = {
-  assetUrl: string;
-  sceneId?: string;
 };
 
 type SceneVideoAsset = {
@@ -151,10 +145,6 @@ function formatSrtTime(seconds: number) {
   );
 }
 
-function escapePowerShellSingle(value: string) {
-  return value.replace(/'/g, "''");
-}
-
 function subtitlePathForFfmpeg(file: string) {
   return file.replace(/\\/g, "/").replace(/:/g, "\\:");
 }
@@ -185,13 +175,6 @@ async function findExecutable(command: string) {
   }
 }
 
-function cameraMotion(_scene: AIProductionScene) {
-  return {
-    zoom: "1.0",
-    x: "iw/2-(iw/zoom/2)",
-    y: "ih/2-(ih/zoom/2)",
-  };
-}
 async function createDialogueAudio(options: {
   tempDir: string;
   outputDir: string;
@@ -286,7 +269,7 @@ export async function renderLocalVideo(input: {
   script: string;
   director: string;
   model?: string;
-  imageAssets?: SceneImageAsset[];
+  imageAssets?: Array<{ assetUrl: string; sceneId?: string }>;
   videoAssets?: SceneVideoAsset[];
 }) {
   if (process.platform !== "win32") {
@@ -603,6 +586,41 @@ export async function renderLocalVideo(input: {
       "No generated I2V scene videos were found. Run the Video Artist stage before rendering.",
     );
   }
+
+  const concatVideoPath = path.join(mediaDir, "concat.txt");
+  await fs.writeFile(
+    concatVideoPath,
+    clipPaths
+      .map(
+        (file) =>
+          "file '" +
+          file.replace(/\\/g, "/").replace(/'/g, "''") +
+          "'",
+      )
+      .join("\n") + "\n",
+    "utf8",
+  );
+
+  const slideshowPath = path.join(mediaDir, "kids-i2v.mp4");
+  await run("ffmpeg", [
+    "-y",
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    concatVideoPath,
+    "-an",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-pix_fmt",
+    "yuv420p",
+    "-r",
+    "30",
+    slideshowPath,
+  ]);
 
   const subtitleFile = subtitlePathForFfmpeg(srtPath);
   const videoFilter =
