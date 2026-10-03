@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         "Set aspect_ratio to \"9:16\" for every scene. This production is vertical-first for YouTube Shorts.",
         "dialogue is an array of objects: speaker, character_id, line, emotion. Prefer 1-3 short dialogue lines per scene for this production pass.",
         "Every dialogue line must be in Bahasa Indonesia (id-ID) because Vox will synthesize it with an Indonesian Windows voice.",
-        "A brief silent visual beat is allowed for at most one scene when it improves pacing, but the overall six-scene Short must contain dialogue."
+        "A brief silent visual beat is allowed for at most one scene when it improves pacing, but the overall six-scene Short must contain dialogue.",
         "characters_present is an array of character_id values visible in the shot.",
         "reference_character_ids must contain every recurring character visible in the shot.",
         "narration_excerpt should be empty when dialogue and acting already carry the scene. Do not invent narration just to fill the field.",
