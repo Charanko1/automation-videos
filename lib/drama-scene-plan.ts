@@ -306,13 +306,42 @@ function buildVisualPrompt(prompt: string, scene: Record<string, unknown>) {
     .join("\n\n");
 }
 
-function findSceneArray(parsedValues: unknown[]) {
-  for (const value of parsedValues) {
-    const scenes = deepFindByKey(value, ["scenes"]);
-    if (Array.isArray(scenes)) return scenes;
+function looksLikeScene(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return Boolean(
+    asString(record.scene_id ?? record.sceneId ?? record.id) &&
+      asString(record.visual_prompt_core ?? record.visual_prompt ?? record.visualPrompt),
+  );
+}
 
-    const scene = deepFindByKey(value, ["scene"]);
-    if (Array.isArray(scene)) return scene;
+function findSceneArray(parsedValues: unknown[]) {
+  const sceneKeys = [
+    "scenes",
+    "scene_plans",
+    "scenePlans",
+    "scene_list",
+    "sceneList",
+    "shots",
+    "shot_list",
+    "shotList",
+    "storyboard",
+  ];
+
+  for (const value of parsedValues) {
+    if (Array.isArray(value) && value.some(looksLikeScene)) {
+      return value;
+    }
+
+    const direct = deepFindByKey(value, sceneKeys);
+    if (Array.isArray(direct) && direct.some(looksLikeScene)) {
+      return direct;
+    }
+
+    const nested = deepFindByKey(value, ["scene"]);
+    if (Array.isArray(nested) && nested.some(looksLikeScene)) {
+      return nested;
+    }
   }
 
   return [];
@@ -338,6 +367,20 @@ export function parseDirectorPlan(text: string): ParsedDramaPlan {
     ...(marked ? [marked] : []),
     ...extractBalancedJsonValues(clean),
   ];
+
+  const fenceClean = clean
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  if (fenceClean && fenceClean !== clean) {
+    try {
+      const fencedParsed = JSON.parse(fenceClean) as unknown;
+      parsedValues.unshift(fencedParsed);
+    } catch {
+      // Balanced JSON extraction may still recover valid objects.
+    }
+  }
 
   if (parsedValues.length === 0) {
     try {
