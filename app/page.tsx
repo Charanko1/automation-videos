@@ -311,6 +311,7 @@ export default function Page() {
 
         // A new Director plan changes scene identity, prompts, and continuity, so old images are not safe to reuse.
         generatedAssets = [];
+        generatedVideoAssets = [];
 
         updateActiveAI({
           phase: "IMAGES",
@@ -405,6 +406,9 @@ export default function Page() {
           narrationExcerpt: scenePlan.narrationExcerpt,
           generatedAt: new Date().toISOString(),
         });
+        generatedVideoAssets = generatedVideoAssets.filter(
+          (asset) => asset.sceneId !== scenePlan.sceneId,
+        );
 
         updateActiveAI({
           phase: "IMAGES",
@@ -564,6 +568,7 @@ export default function Page() {
           director: activeProject.ai.director,
           model: activeProject.ai.model,
           imageAssets: activeProject.ai.imageAssets ?? [],
+          videoAssets: activeProject.ai.videoAssets ?? [],
         }),
       });
       const data = await response.json();
