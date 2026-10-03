@@ -12,43 +12,37 @@ param(
 $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$null = [Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media.SpeechSynthesis, ContentType = WindowsRuntime]
-$null = [Windows.Storage.Streams.DataReader, Windows.Storage.Streams, ContentType = WindowsRuntime]
 
-function Await-WinRTOperation {
-  param([Parameter(Mandatory = $true)]$Operation)
+[void][Windows.Foundation.IAsyncOperation`1, Windows.Foundation, ContentType=WindowsRuntime]
+[void][Windows.Foundation.IAsyncOperationWithProgress`2, Windows.Foundation, ContentType=WindowsRuntime]
+[void][Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media.SpeechSynthesis, ContentType=WindowsRuntime]
+[void][Windows.Media.SpeechSynthesis.VoiceInformation, Windows.Media.SpeechSynthesis, ContentType=WindowsRuntime]
+[void][Windows.Media.SpeechSynthesis.SpeechSynthesisStream, Windows.Media.SpeechSynthesis, ContentType=WindowsRuntime]
+[void][Windows.Storage.Streams.IBuffer, Windows.Storage.Streams, ContentType=WindowsRuntime]
+[void][Windows.Storage.Streams.InputStreamOptions, Windows.Storage.Streams, ContentType=WindowsRuntime]
 
-  $asyncInterface = $Operation.GetType().GetInterfaces() |
-    Where-Object {
-      $_.IsGenericType -and
-      $_.GetGenericTypeDefinition().FullName -eq "Windows.Foundation.IAsyncOperation`1"
-    } |
-    Select-Object -First 1
+$_taskMethods = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+  $_.Name -eq "AsTask" -and $_.GetParameters().Count -eq 1
+}
+$asTaskGeneric = ($_taskMethods | Where-Object {
+  $_.GetParameters()[0].ParameterType.Name -eq "IAsyncOperation`1"
+})[0]
+$asTaskGeneric2 = ($_taskMethods | Where-Object {
+  $_.GetParameters()[0].ParameterType.Name -eq "IAsyncOperationWithProgress`2"
+})[0]
 
-  if (-not $asyncInterface) {
-    throw "Unsupported WinRT async operation type: $($Operation.GetType().FullName)"
-  }
+function Await-WinRtOperation($WinRtTask, $ResultType) {
+  $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
+  $netTask = $asTask.Invoke($null, @($WinRtTask))
+  $netTask.Wait(-1) | Out-Null
+  return $netTask.Result
+}
 
-  $resultType = $asyncInterface.GetGenericArguments()[0]
-
-  $asTaskMethod = [System.WindowsRuntimeSystemExtensions].GetMethods() |
-    Where-Object {
-      $_.Name -eq "AsTask" -and
-      $_.IsGenericMethod -and
-      $_.GetParameters().Count -eq 1 -and
-      $_.GetParameters()[0].ParameterType.IsGenericType -and
-      $_.GetParameters()[0].ParameterType.GetGenericTypeDefinition().FullName -eq "Windows.Foundation.IAsyncOperation`1"
-    } |
-    Select-Object -First 1
-
-  if (-not $asTaskMethod) {
-    throw "Could not find WindowsRuntimeSystemExtensions.AsTask(IAsyncOperation<TResult>)."
-  }
-
-  $closedMethod = $asTaskMethod.MakeGenericMethod($resultType)
-  $task = $closedMethod.Invoke($null, @($Operation))
-
-  return $task.GetAwaiter().GetResult()
+function Await-WinRtOperationWithProgress($WinRtTask, $ResultType1, $ResultType2) {
+  $asTask = $asTaskGeneric2.MakeGenericMethod($ResultType1, $ResultType2)
+  $netTask = $asTask.Invoke($null, @($WinRtTask))
+  $netTask.Wait(-1) | Out-Null
+  return $netTask.Result
 }
 
 if (-not (Test-Path -LiteralPath $DialogueJsonPath)) {
@@ -126,34 +120,36 @@ foreach ($item in $items) {
   $synth = New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
   $synth.Voice = $selectedVoice
   $stream = $null
-  $inputStream = $null
-  $reader = $null
 
   try {
-    $stream = Await-WinRTOperation ($synth.SynthesizeTextToStreamAsync($line))
+    $stream = Await-WinRtOperation (
+      $synth.SynthesizeTextToStreamAsync($line)
+    ) ([Windows.Media.SpeechSynthesis.SpeechSynthesisStream])
 
     if (-not $stream) {
       throw "Speech synthesis returned no stream for dialogue line $index."
     }
 
-    $inputStream = $stream.GetInputStreamAt(0)
-    $reader = New-Object Windows.Storage.Streams.DataReader($inputStream)
-
     $size = [uint32]$stream.Size
 
-    if ($size -le 0) {
+    if ($size -le 44) {
       throw "Speech synthesis returned an empty stream for dialogue line $index."
     }
 
-    Await-WinRTOperation ($reader.LoadAsync($size)) | Out-Null
+    $bytes = [array]::CreateInstance([byte], $size)
+    $buffer = [System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions]::AsBuffer($bytes)
 
-    $bytes = New-Object byte[] $size
-    $reader.ReadBytes($bytes)
+    Await-WinRtOperationWithProgress (
+      $stream.ReadAsync(
+        $buffer,
+        $size,
+        [Windows.Storage.Streams.InputStreamOptions]::None
+      )
+    ) ([Windows.Storage.Streams.IBuffer]) ([uint32]) | Out-Null
+
     [System.IO.File]::WriteAllBytes($file, $bytes)
   }
   finally {
-    if ($reader) { $reader.Dispose() }
-    if ($inputStream) { $inputStream.Dispose() }
     if ($stream) { $stream.Dispose() }
     if ($synth) { $synth.Dispose() }
   }
