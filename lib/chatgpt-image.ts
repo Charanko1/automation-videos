@@ -45,11 +45,22 @@ export async function generateWithChatGPTImage(prompt: string): Promise<ChatGPTI
     );
   }
 
-  const model = Array.isArray(modelsData?.models)
-    ? (modelsData.models as ModelItem[]).find(
+  const configuredModel = process.env.CHATGPT_MAINLINE_MODEL?.trim();
+  const visibleModels = Array.isArray(modelsData?.models)
+    ? (modelsData.models as ModelItem[]).filter(
         (item) => item?.visibility === "list" && typeof item.slug === "string",
       )
-    : null;
+    : [];
+  const model =
+    (configuredModel
+      ? visibleModels.find((item) => item.slug === configuredModel)
+      : null) ??
+    visibleModels.find((item) => {
+      const slug = item.slug ?? "";
+      return /^gpt-(5|6)/i.test(slug);
+    }) ??
+    visibleModels[0] ??
+    null;
 
   if (!model?.slug) {
     throw new Error("No displayable ChatGPT model was returned for this account.");
