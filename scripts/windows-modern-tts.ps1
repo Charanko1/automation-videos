@@ -11,105 +11,92 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-
-[void][Windows.Foundation.IAsyncOperation`1, Windows.Foundation, ContentType=WindowsRuntime]
-[void][Windows.Foundation.IAsyncOperationWithProgress`2, Windows.Foundation, ContentType=WindowsRuntime]
-[void][Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media.SpeechSynthesis, ContentType=WindowsRuntime]
-[void][Windows.Media.SpeechSynthesis.VoiceInformation, Windows.Media.SpeechSynthesis, ContentType=WindowsRuntime]
-[void][Windows.Media.SpeechSynthesis.SpeechSynthesisStream, Windows.Media.SpeechSynthesis, ContentType=WindowsRuntime]
-[void][Windows.Storage.Streams.IBuffer, Windows.Storage.Streams, ContentType=WindowsRuntime]
-[void][Windows.Storage.Streams.InputStreamOptions, Windows.Storage.Streams, ContentType=WindowsRuntime]
-
-function Await-WinRtOperation {
-  param(
-    [Parameter(Mandatory = $true)]$Operation,
-    [int]$TimeoutSeconds = 60
-  )
-
-  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-
-  while ($true) {
-    $status = $Operation.Status
-
-    if ([int]$status -eq 1) {
-      return $Operation.GetResults()
-    }
-
-    if ([int]$status -eq 2) {
-      throw "WinRT speech operation was canceled."
-    }
-
-    if ([int]$status -eq 3) {
-      $errorCode = $Operation.ErrorCode
-      throw "WinRT speech operation failed. ErrorCode=$errorCode"
-    }
-
-    if ((Get-Date) -gt $deadline) {
-      throw "WinRT speech operation timed out after $TimeoutSeconds seconds."
-    }
-
-    Start-Sleep -Milliseconds 50
-  }
-}
 if (-not (Test-Path -LiteralPath $DialogueJsonPath)) {
   throw "Dialogue JSON was not found: $DialogueJsonPath"
 }
 
+$null = New-Item -ItemType Directory -Force -Path $OutputDir
+
 $parsedItems = Get-Content -Raw -LiteralPath $DialogueJsonPath | ConvertFrom-Json
 $items = @($parsedItems | ForEach-Object { $_ })
 
-$allVoices = @([Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices)
-$targetVoices = @(
-  $allVoices |
-    Where-Object {
-      $_.Language -eq $Language -or $_.Language -like "id-*"
-    }
+# Windows keeps modern/OneCore voices under Speech_OneCore. SAPI COM can
+# enumerate that category directly without copying registry keys.
+$category = New-Object -ComObject SAPI.SpObjectTokenCategory
+$category.SetId("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices")
+
+$tokens = @($category.EnumerateTokens())
+$targetTokens = @(
+  $tokens | Where-Object {
+    $languageValue = ""
+    try { $languageValue = [string]$_.GetAttribute("Language") } catch {}
+    $description = ""
+    try { $description = [string]$_.GetDescription() } catch {}
+
+    ($languageValue -match "(^|;)0421(;|$)|(^|;)421(;|$)") -or
+    ($description -match "\(id-ID\)") -or
+    ($_.Id -match "(?i)(id[-_]?ID|Indonesian|Andika)")
+  }
 )
 
 $requestedVoice = $env:AI_OFFICE_VOX_VOICE
-$selectedVoice = $null
+$selectedToken = $null
 
 if ($requestedVoice) {
-  $selectedVoice = $targetVoices |
+  $selectedToken = $targetTokens |
     Where-Object {
-      $_.DisplayName -eq $requestedVoice -or
       $_.Id -eq $requestedVoice -or
-      $_.Description -eq $requestedVoice
+      $_.GetDescription() -eq $requestedVoice
     } |
     Select-Object -First 1
 
-  if (-not $selectedVoice) {
-    $available = ($targetVoices | ForEach-Object {
-      $_.DisplayName + " [" + $_.Language + "]"
+  if (-not $selectedToken) {
+    $available = ($targetTokens | ForEach-Object {
+      try {
+        $_.GetDescription() + " [" + $_.GetAttribute("Language") + "]"
+      } catch {
+        $_.Id
+      }
     }) -join "; "
 
-    throw "Configured Vox voice was not found among Indonesian Windows voices: $requestedVoice. Available id-ID voices: $available"
+    throw "Configured Vox voice was not found among Indonesian OneCore voices: $requestedVoice. Available id-ID voices: $available"
   }
 }
 
-if (-not $selectedVoice) {
-  $selectedVoice = $targetVoices | Select-Object -First 1
+if (-not $selectedToken) {
+  $selectedToken = $targetTokens | Select-Object -First 1
 }
 
-if (-not $selectedVoice) {
-  $allVoiceInfo = ($allVoices | ForEach-Object {
-    $_.DisplayName + " [" + $_.Language + "]"
+if (-not $selectedToken) {
+  $allVoiceInfo = ($tokens | ForEach-Object {
+    try {
+      $_.GetDescription() + " [" + $_.GetAttribute("Language") + "]"
+    } catch {
+      $_.Id
+    }
   }) -join "; "
 
-  throw "No Indonesian Windows modern Speech voice is installed. Required culture: id-ID. Installed voices: $allVoiceInfo"
+  throw "No Indonesian OneCore/SAPI voice was found. Required language: id-ID. Installed OneCore voices: $allVoiceInfo"
 }
 
-$voiceLabel = [string]$selectedVoice.DisplayName
-$null = New-Item -ItemType Directory -Force -Path $OutputDir
+$voiceLabel = [string]$selectedToken.GetDescription()
+$voiceLanguage = ""
+try { $voiceLanguage = [string]$selectedToken.GetAttribute("Language") } catch {}
 
 Write-Output (
-  "TTS engine=Windows.Media.SpeechSynthesis; language=" + $Language +
+  "TTS engine=SAPI COM OneCore; language=" + $Language +
   "; items=" + $items.Count +
-  "; targetVoices=" + $targetVoices.Count +
+  "; totalOneCoreVoices=" + $tokens.Count +
+  "; targetVoices=" + $targetTokens.Count +
   "; selectedVoice=" + $voiceLabel +
+  "; selectedLanguage=" + $voiceLanguage +
   "; outDir=" + $OutputDir
 )
+
+$voice = New-Object -ComObject SAPI.SpVoice
+$voice.Voice = $selectedToken
+$voice.Rate = 0
+$voice.Volume = 100
 
 foreach ($item in $items) {
   $index = [int]$item.index
@@ -124,43 +111,20 @@ foreach ($item in $items) {
     Remove-Item -LiteralPath $file -Force
   }
 
-  $synth = New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
-  $synth.Voice = $selectedVoice
-  $stream = $null
+  $stream = New-Object -ComObject SAPI.SpFileStream
 
   try {
-    $speechOperation = $synth.SynthesizeTextToStreamAsync($line)
-    $stream = Await-WinRtOperation $speechOperation
-
-    if (-not $stream) {
-      throw "Speech synthesis returned no stream for dialogue line $index."
-    }
-
-    $size = [uint32]$stream.Size
-
-    if ($size -le 44) {
-      throw "Speech synthesis returned an empty stream for dialogue line $index."
-    }
-
-    $bytes = New-Object byte[] $size
-    $buffer = [System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions]::AsBuffer($bytes)
-
-    if (-not $buffer) {
-      throw "Could not create a WinRT buffer for dialogue line $index."
-    }
-
-    $readOperation = $stream.ReadAsync(
-      $buffer,
-      $size,
-      [Windows.Storage.Streams.InputStreamOptions]::None
-    )
-    [void](Await-WinRtOperation $readOperation)
-
-    [System.IO.File]::WriteAllBytes($file, $bytes)
+    # 3 = SSFMCreateForWrite
+    $stream.Open($file, 3, $false)
+    $voice.AudioOutputStream = $stream
+    $null = $voice.Speak($line, 0)
+    $stream.Close()
+    $voice.AudioOutputStream = $null
   }
   finally {
-    if ($stream) { $stream.Dispose() }
-    if ($synth) { $synth.Dispose() }
+    try { $stream.Close() } catch {}
+    try { $voice.AudioOutputStream = $null } catch {}
+    try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($stream) | Out-Null } catch {}
   }
 
   if (-not (Test-Path -LiteralPath $file)) {
@@ -175,3 +139,6 @@ foreach ($item in $items) {
 
   Write-Output ("TTS wrote line " + $index + ": " + $length + " bytes")
 }
+
+try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($voice) | Out-Null } catch {}
+try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($category) | Out-Null } catch {}
