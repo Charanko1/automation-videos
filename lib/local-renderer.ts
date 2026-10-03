@@ -180,47 +180,13 @@ async function findExecutable(command: string) {
   }
 }
 
-function cameraMotion(scene: AIProductionScene) {
-  const camera = (scene.cameraAndComposition ?? "").toLowerCase();
-
-  if (
-    camera.includes("close-up") ||
-    camera.includes("close up") ||
-    camera.includes("reaction")
-  ) {
-    return {
-      zoom: "min(zoom+0.00065,1.10)",
-      x: "iw/2-(iw/zoom/2)",
-      y: "ih/2-(ih/zoom/2)",
-    };
-  }
-
-  if (camera.includes("wide") || camera.includes("establishing")) {
-    return {
-      zoom: "max(zoom-0.00035,1.0)",
-      x: "iw/2-(iw/zoom/2)",
-      y: "ih/2-(ih/zoom/2)",
-    };
-  }
-
-  if (
-    camera.includes("over-the-shoulder") ||
-    camera.includes("over the shoulder")
-  ) {
-    return {
-      zoom: "min(zoom+0.0005,1.08)",
-      x: "iw/2-(iw/zoom/2)+sin(on*0.012)*24",
-      y: "ih/2-(ih/zoom/2)",
-    };
-  }
-
+function cameraMotion(_scene: AIProductionScene) {
   return {
-    zoom: "min(zoom+0.00045,1.07)",
+    zoom: "1.0",
     x: "iw/2-(iw/zoom/2)",
     y: "ih/2-(ih/zoom/2)",
   };
 }
-
 async function createDialogueAudio(options: {
   tempDir: string;
   outputDir: string;
@@ -580,25 +546,15 @@ export async function renderLocalVideo(input: {
             totalDuration / Math.max(plan.scenes.length, 1),
           );
 
-    const frames = Math.max(24, Math.ceil(clipDuration * 30));
     const clipPath = path.join(
       imageDir,
       String(sceneIndex + 1).padStart(3, "0") + ".mp4",
     );
-    const motion = cameraMotion(scene);
 
     const imageFilter =
       "scale=1080:1920:force_original_aspect_ratio=decrease," +
       "pad=1080:1920:(ow-iw)/2:(oh-ih)/2," +
-      "zoompan=z='" +
-      motion.zoom +
-      "':x='" +
-      motion.x +
-      "':y='" +
-      motion.y +
-      "':d=" +
-      frames +
-      ":s=1080x1920:fps=30,format=yuv420p";
+      "format=yuv420p";
 
     await run("ffmpeg", [
       "-y",
@@ -737,7 +693,7 @@ export async function renderLocalVideo(input: {
     speakers,
     imageScenes: generatedImageCount,
     note:
-      "Local drama assembly with Windows Speech Synthesis character dialogue, speaker-based voice assignment when multiple system voices are available, clean subtitles without speaker labels, and Director-driven camera motion. AI video motion is not applied yet.",
+      "Local Kids Shorts assembly with Indonesian Windows Speech Synthesis, clean subtitles without speaker labels, static locked-off camera framing, and timed character-motion plans. AI character video motion is not applied yet.",
     files: {
       screenplay: "screenplay.txt",
       director: "director-scene-plan.txt",
