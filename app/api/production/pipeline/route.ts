@@ -116,6 +116,8 @@ export async function POST(request: Request) {
         "narration_excerpt should be empty when dialogue and acting already carry the scene. Do not invent narration just to fill the field.",
         "on_screen_text should be empty unless the story naturally requires readable diegetic text such as a sign, letter, or phone screen.",
         "visual_prompt_core must describe one film frame of the characters ACTING: their pose, eye-lines, expressions, relationships, props, environment, and immediate action.",
+        "For every scene, choose a distinct physical action or reaction and write it explicitly in character_actions. Avoid static posing; the frame must look like a frozen animation keyframe captured mid-action.",
+        "Use varied movement across the six scenes: at least one reach/gesture, one turn/reaction, one interaction with a prop, and one stronger body movement such as running, grabbing, opening, pulling, or recoiling when story-appropriate.",
         "camera_and_composition must specify a shot type such as establishing, wide, medium, two-shot, over-the-shoulder, close-up, reaction shot, and include framing and camera movement when useful.",
         "lighting_and_color must support the emotional beat and maintain continuity.",
         "Track continuity across scenes: character appearance, clothing, props, location, time of day, and emotional state.",
