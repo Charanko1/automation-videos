@@ -149,6 +149,7 @@ export async function POST(request: Request) {
   }
 
   let sceneId = "scene";
+  const buildMarker = "I2V-ROUTE-BUILD-20261003-1";
   try {
     const body = await request.json().catch(() => ({}));
     const projectId =
@@ -189,6 +190,7 @@ export async function POST(request: Request) {
     const imageDataUrl =
       "data:image/png;base64," + imageBytes.toString("base64");
 
+    console.log(`[AI Office] ${buildMarker} · generating ${sceneId}`);
     const result = await generateWithOmniRouteVideo(prompt, imageDataUrl, {
       durationSeconds:
         Number.isFinite(durationSeconds) && durationSeconds > 0
@@ -244,7 +246,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Video generation failed.";
     console.error("[AI Office] I2V failed:", message);
     return NextResponse.json(
-      { ok: false, error: `I2V failed for ${sceneId}. ${message}` },
+      { ok: false, error: `${buildMarker} · I2V failed for ${sceneId}. ${message}` },
       { status: 502 },
     );
   }
