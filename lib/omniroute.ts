@@ -35,12 +35,13 @@ async function requestOmniRoute(path: string, init: RequestInit = {}) {
   }
 
   try {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${apiKey}`);
+    headers.set("Content-Type", "application/json");
+
     const response = await fetch(`${baseUrl}${path}`, {
       ...init,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       cache: "no-store",
     });
 
