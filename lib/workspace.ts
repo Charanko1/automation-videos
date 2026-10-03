@@ -1,5 +1,5 @@
 export type ProjectStatus = "DRAFT" | "PRODUCING" | "COMPLETED";
-export type AIPipelinePhase = "IDLE" | "RESEARCH" | "SCRIPT" | "DIRECTOR" | "IMAGES" | "COMPLETED" | "FAILED";
+export type AIPipelinePhase = "IDLE" | "RESEARCH" | "SCRIPT" | "DIRECTOR" | "IMAGES" | "VIDEO" | "COMPLETED" | "FAILED";
 
 export type AIRender = {
   status: "IDLE" | "RENDERING" | "READY" | "FAILED";
@@ -44,6 +44,14 @@ export type AIImageAsset = {
   generatedAt: string;
 };
 
+export type AIVideoAsset = {
+  sceneId: string;
+  assetUrl: string;
+  model?: string;
+  durationSeconds?: number;
+  generatedAt: string;
+};
+
 export type AIProduction = {
   phase: AIPipelinePhase;
   pipelineVersion?: "drama-v2" | "kids-shorts-v1";
@@ -54,6 +62,7 @@ export type AIProduction = {
   characterBible?: string;
   scenePlans?: AIProductionScene[];
   imageAssets?: AIImageAsset[];
+  videoAssets?: AIVideoAsset[];
   model?: string;
   render?: AIRender;
   error?: string;
