@@ -136,8 +136,35 @@ async function resolveVideoModel() {
         .filter(Boolean)
     : [];
 
+  // Prefer Novita I2V explicitly. The generic "first I2V-like model" strategy
+  // can accidentally pick no-auth/demo providers such as veoaifree-web/seedance,
+  // which may generate a video URL that OmniRoute itself cannot fetch.
+  const novitaI2V = models.find((id) => {
+    const value = id.toLowerCase();
+    return (
+      value.startsWith("novita/") &&
+      (value.includes("i2v") ||
+        value.includes("img2video") ||
+        value.includes("image-to-video") ||
+        value.includes("image_to_video"))
+    );
+  });
+  if (novitaI2V) return novitaI2V;
+
   const preferred = models.find(looksLikeI2VModel);
-  if (preferred) return preferred;
+  if (preferred) {
+    console.warn(
+      `[AI Office] No Novita I2V model was exposed by OmniRoute; auto-selected ${preferred}. Set OMNIROUTE_VIDEO_MODEL explicitly to your intended I2V provider/model.`,
+    );
+    return preferred;
+  }
+
+  const novitaModels = models.filter((id) => id.toLowerCase().startsWith("novita/"));
+  if (novitaModels.length > 0) {
+    throw new Error(
+      `OmniRoute exposes Novita models but none is identified as I2V: ${novitaModels.join(", ")}. Set OMNIROUTE_VIDEO_MODEL to a Novita I2V model such as novita/wan2.7-i2v if it appears in your catalog.`,
+    );
+  }
 
   const anyVideo = models.find(isVideoModel);
   if (anyVideo) {
