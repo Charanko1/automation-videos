@@ -154,18 +154,20 @@ async function resolveVideoModel() {
   });
   if (klingI2V) return klingI2V;
 
-  // Keep Novita as the next fallback when Kling I2V is not connected.
-  const novitaI2V = models.find((id) => {
-    const value = id.toLowerCase();
-    return (
-      value.startsWith("novita/") &&
-      (value.includes("i2v") ||
-        value.includes("img2video") ||
-        value.includes("image-to-video") ||
-        value.includes("image_to_video"))
+  // Do NOT silently fall back to Novita. A model such as
+  // novita/kling-v3.0-std-i2v is still a Novita-hosted route and can consume
+  // Novita balance even though the underlying model is Kling.
+  //
+  // If KlingAI is not exposed by the local OmniRoute catalog, fail loudly
+  // instead of unexpectedly consuming Novita credit.
+  const i2vCandidates = models.filter(looksLikeI2VModel);
+  if (i2vCandidates.length > 0) {
+    throw new Error(
+      "No KlingAI I2V model is exposed by OmniRoute. Available I2V candidates: " +
+        i2vCandidates.join(", ") +
+        ". Connect a KlingAI provider in OmniRoute or set OMNIROUTE_VIDEO_MODEL to the exact KlingAI I2V model ID exposed by /v1/models.",
     );
-  });
-  if (novitaI2V) return novitaI2V;
+  }
 
   const preferred = models.find(looksLikeI2VModel);
   if (preferred) {
