@@ -13,7 +13,7 @@ const people = [
   { id: "wri", name: "Wri", role: "Kids Storyboard Writer", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
   { id: "dira", name: "Dira", role: "Kids Prompt Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
   { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "OmniRoute Image → Cloudflare fallback", dept: "image", color: "#68dcae" },
-  { id: "gpt", name: "GPT", role: "Video Artist", provider: "Local FFmpeg · I2V-ready", dept: "video", color: "#72c7ff" },
+  { id: "gpt", name: "GPT", role: "Video Artist", provider: "OmniRoute I2V · configurable model", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Indonesian Dialogue Voice", provider: "Windows Speech Synthesis · id-ID", dept: "tts", color: "#ff8b94" },
 ];
 
@@ -28,6 +28,7 @@ const aiPhaseLabel: Record<string, string> = {
   SCRIPT: "Wri · Writing screenplay",
   DIRECTOR: "Dira · Blocking scenes",
   IMAGES: "Gemi · Generating character keyframes",
+  VIDEO: "GPT · Animating scenes",
   COMPLETED: "Kids Short pre-production complete",
   FAILED: "Pipeline failed",
 };
@@ -37,7 +38,7 @@ type WorkerCommand = { workerId: string; type: "BREAK" | "RETURN"; nonce: number
 function projectStage(scene: number, total: number, preProductionComplete = false) {
   if (total <= 0) return 0;
   if (!preProductionComplete) {
-    return Math.min(3, Math.floor((scene / total) * 4));
+    return Math.min(4, Math.floor((scene / total) * 5));
   }
   return Math.min(pipe.length - 1, 4 + Math.floor((scene / total) * 4));
 }
@@ -180,6 +181,9 @@ export default function Page() {
     let directorScenes = kidsArtifacts && Array.isArray(activeProject.ai?.scenePlans) ? activeProject.ai.scenePlans : [];
     let generatedAssets: NonNullable<AIProduction["imageAssets"]> = kidsArtifacts && Array.isArray(activeProject.ai?.imageAssets)
       ? [...activeProject.ai.imageAssets]
+      : [];
+    let generatedVideoAssets: NonNullable<AIProduction["videoAssets"]> = kidsArtifacts && Array.isArray(activeProject.ai?.videoAssets)
+      ? [...activeProject.ai.videoAssets]
       : [];
 
     try {
@@ -410,6 +414,105 @@ export default function Page() {
       }
 
       updateActiveAI({
+        phase: "VIDEO",
+        pipelineVersion: "kids-shorts-v1",
+        director: directorText,
+        characterBible,
+        scenePlans: directorScenes,
+        imageAssets: generatedAssets,
+        videoAssets: generatedVideoAssets,
+        model: activeProject.ai?.model,
+        textProvider: activeProject.ai?.textProvider ?? "ChatGPT plan",
+        error: undefined,
+      });
+
+      updateActiveProject({
+        status: "PRODUCING",
+        currentScene: 0,
+        totalScenes: directorScenes.length,
+      });
+      setScene(0);
+
+      for (let index = 0; index < directorScenes.length; index += 1) {
+        const scenePlan = directorScenes[index];
+        const sourceImage = generatedAssets.find((asset) => asset.sceneId === scenePlan.sceneId);
+
+        if (!sourceImage?.assetUrl) {
+          throw new Error(`GPT Video Artist cannot animate ${scenePlan.sceneId}: the Gemi source image is missing.`);
+        }
+
+        const existingVideo = generatedVideoAssets.find((asset) => asset.sceneId === scenePlan.sceneId);
+        if (existingVideo?.assetUrl) {
+          let videoStillExists = false;
+          try {
+            const assetCheck = await fetch(existingVideo.assetUrl, { method: "HEAD", cache: "no-store" });
+            videoStillExists = assetCheck.ok;
+          } catch {
+            videoStillExists = false;
+          }
+
+          if (videoStillExists) {
+            setToast(`GPT · Scene ${index + 1}/${directorScenes.length} · Reusing existing I2V video.`);
+            continue;
+          }
+
+          generatedVideoAssets = generatedVideoAssets.filter((asset) => asset.sceneId !== scenePlan.sceneId);
+        }
+
+        const motionPrompt = [
+          "Animate the supplied first frame as a single continuous preschool 3D animation.",
+          "Keep the exact character identity, clothing, proportions, environment, props, lighting, and composition from the source image.",
+          "Camera must stay completely static: static locked-off shot, no zoom, no pan, no camera movement.",
+          "All visible motion must come from the characters and simple props.",
+          "Start moving at 0 seconds; do not hold a frozen pose before acting.",
+          "Follow this exact timed motion plan:",
+          scenePlan.motion ?? scenePlan.characterActions ?? "Bimo performs one clear, cheerful physical action.",
+          "No new characters, no scene changes, no collage, no text, no watermark, no scary or dangerous action.",
+          "Output a clean vertical 9:16 video for children ages 2–7.",
+        ].join("\n");
+
+        const durationSeconds = 5;
+
+        setToast(`GPT · Scene ${index + 1}/${directorScenes.length} · Generating I2V motion…`);
+
+        const videoResponse = await fetch("/api/production/video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: activeProject.id,
+            sceneId: scenePlan.sceneId,
+            sourceAssetUrl: sourceImage.assetUrl,
+            prompt: motionPrompt,
+            durationSeconds,
+          }),
+        });
+
+        const videoData = await videoResponse.json().catch(() => ({}));
+        if (!videoResponse.ok || !videoData.ok) {
+          const detail =
+            typeof videoData.error === "string" && videoData.error.trim()
+              ? videoData.error.trim()
+              : `HTTP ${videoResponse.status} ${videoResponse.statusText || ""}`.trim();
+          throw new Error(detail || `I2V generation failed for ${scenePlan.sceneId}.`);
+        }
+
+        generatedVideoAssets.push({
+          sceneId: scenePlan.sceneId,
+          assetUrl: videoData.assetUrl,
+          model: videoData.model,
+          durationSeconds,
+          generatedAt: new Date().toISOString(),
+        });
+
+        updateActiveAI({
+          phase: "VIDEO",
+          videoAssets: [...generatedVideoAssets],
+          imageAssets: generatedAssets,
+          error: undefined,
+        });
+      }
+
+      updateActiveAI({
         phase: "COMPLETED",
         pipelineVersion: "kids-shorts-v1",
         research: researchText,
@@ -446,7 +549,7 @@ export default function Page() {
   const renderFinalVideo = async () => {
     if (!activeProject?.ai?.script || !activeProject.ai.director || rendering) return;
     setRendering(true);
-    setToast("Vox · Indonesian id-ID TTS + FFmpeg is assembling the Kids Short…");
+    setToast("Vox + FFmpeg · assembling generated I2V scenes into the Kids Short…");
     updateActiveAI({ render: { status: "RENDERING", error: undefined } });
 
     try {
@@ -495,7 +598,8 @@ export default function Page() {
 
     const needsAI =
       (activeProject.ai?.phase ?? "IDLE") !== "COMPLETED" ||
-      (activeProject.ai?.imageAssets?.length ?? 0) === 0;
+      (activeProject.ai?.imageAssets?.length ?? 0) < activeProject.totalScenes ||
+      (activeProject.ai?.videoAssets?.length ?? 0) < activeProject.totalScenes;
     if (needsAI) {
       const completed = await runAIPipeline();
       if (!completed) return;
@@ -594,7 +698,7 @@ export default function Page() {
         })}
         <Link className="hire" href="/projects">+ Create Project</Link>
         <div className="card"><div className="mini">Active project</div><div className="projectName">{activeProject?.title ?? "No active project"}</div><div className="muted">{activeProject ? `${activeProject.type} · ${activeProject.totalScenes} scenes` : "Create a project to start production."}</div><div className="prog"><i style={{width:`${pct}%`}}/></div><div className="projectFoot"><span>Scene {scene}/{totalScenes}</span><b>{pct}%</b></div></div>
-        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "KIDS SHORTS PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "Worker movement follows the active production state. ChatGPT plan handles the kids story pipeline, with OmniRoute as fallback; Gemi generates cheerful 9:16 character keyframes."}</div></div>
+        <div className="card"><div className="mini">Office status</div><div style={{fontSize:12,fontWeight:900,marginTop:6}}><span style={{display:"inline-block",width:8,height:8,borderRadius:99,background:resting?"#ffbe65":aiRunning?"#8db8ff":running?"#64dfa1":"#7f8791",marginRight:7}}/>{aiRunning ? "KIDS SHORTS PRE-PRODUCTION" : resting?"REST MODE":running?"PRODUCTION ACTIVE":"IDLE"}</div><div className="muted" style={{lineHeight:1.5}}>{aiRunning ? aiPhaseLabel[aiPhase] : "ChatGPT plan handles the story pipeline with OmniRoute fallback. Gemi creates the clean 9:16 keyframes, then GPT uses OmniRoute I2V to animate each scene."}</div></div>
       </aside>
 
       <section className="world">
@@ -620,7 +724,7 @@ export default function Page() {
         </div>
 
         <div className="card"><div className="title"><Sparkles size={14}/> OmniRoute AI Brain</div>
-          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT plan handles Story → Screenplay → Director first; OmniRoute remains the fallback brain. Gemi then turns the storyboard into bright 9:16 animated kids keyframes.</div>
+          <div className="muted" style={{lineHeight:1.5,marginBottom:10}}>ChatGPT plan handles Story → Screenplay → Director first; OmniRoute is the text fallback. Gemi creates the source keyframes, then GPT sends each scene to OmniRoute I2V for real character motion.</div>
           <div className="stat"><span>AI status</span><b>{aiPhaseLabel[aiPhase]}</b></div>
           <div className="stat"><span>Model</span><b>{activeProject?.ai?.model ?? "GPT account model"}</b></div>
           <button className="ctrl green" disabled={!activeProject || aiRunning} onClick={runAIPipeline}><Sparkles size={14}/>{aiRunning ? aiPhaseLabel[aiPhase] : "Run Full AI Pre-Production"}</button>
@@ -658,8 +762,24 @@ export default function Page() {
               ))}
             </div>
           </div>}
+          {activeProject.ai.videoAssets && activeProject.ai.videoAssets.length > 0 && <div style={{marginTop:12}}>
+            <div className="mini" style={{marginBottom:8}}>GPT I2V scene videos · {activeProject.ai.videoAssets.length}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
+              {activeProject.ai.videoAssets.map((asset) => (
+                <a key={asset.sceneId} href={asset.assetUrl} target="_blank" rel="noreferrer" style={{display:"block",textDecoration:"none"}}>
+                  <video src={asset.assetUrl} muted playsInline controls preload="metadata" style={{display:"block",width:"100%",aspectRatio:"9/16",objectFit:"cover",borderRadius:10,border:"1px solid rgba(255,255,255,.08)"}} />
+                  <div className="muted" style={{fontSize:10,marginTop:4}}>{asset.sceneId} · {asset.model ?? "I2V"}</div>
+                </a>
+              ))}
+            </div>
+          </div>}
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
-            <button className="ctrl green compact" onClick={renderFinalVideo} disabled={rendering}>
+            <button
+              className="ctrl green compact"
+              onClick={renderFinalVideo}
+              disabled={rendering || (activeProject.ai?.videoAssets?.length ?? 0) < activeProject.totalScenes}
+              title={(activeProject.ai?.videoAssets?.length ?? 0) < activeProject.totalScenes ? "Finish GPT Video Artist I2V generation first." : undefined}
+            >
               <Sparkles size={14}/>{rendering ? "Rendering video…" : activeProject.ai.render?.status === "READY" ? "Render again" : "Render Final Video"}
             </button>
             {activeProject.ai.render?.status === "READY" && activeProject.ai.render.videoUrl && (
@@ -669,9 +789,9 @@ export default function Page() {
               <a className="ctrl compact" href={activeProject.ai.render.thumbnailUrl} target="_blank" rel="noreferrer">Open thumbnail</a>
             )}
           </div>
-          {activeProject.ai.render?.status === "RENDERING" && <div className="notice" style={{marginTop:10}}>Rendering locally with Windows Speech Synthesis + FFmpeg. Dialogue is generated per character and subtitles contain spoken lines only.</div>}
+          {activeProject.ai.render?.status === "RENDERING" && <div className="notice" style={{marginTop:10}}>Combining GPT I2V scene videos with Windows Indonesian Speech Synthesis, subtitles, and FFmpeg.</div>}
           {activeProject.ai.render?.status === "FAILED" && <div className="notice" style={{marginTop:10}}>FAILED · {activeProject.ai.render.error}</div>}
-          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · MP4 created locally with character dialogue, clean subtitles, camera-aware motion, and generated Gemi scene images.</div>}
+          {activeProject.ai.render?.status === "READY" && <div className="notice" style={{marginTop:10}}>READY · MP4 created from generated Gemi keyframes plus real GPT I2V scene motion, Indonesian dialogue, subtitles, and FFmpeg finishing.</div>}
         </div>}
 
         <div className="card"><div className="title"><Sparkles size={14}/> Office Controls</div>
