@@ -221,89 +221,43 @@ async function createDialogueAudio(options: {
     tempDir,
     "dialogue-" + Date.now() + ".json",
   );
-  const scriptPath = path.join(
-    tempDir,
-    "tts-dialogue-" + Date.now() + ".ps1",
-  );
-  const audioDir = path.join(outputDir, "dialogue-lines");
 
-  await fs.mkdir(audioDir, { recursive: true });
+  const scriptPath = path.join(
+    process.cwd(),
+    "scripts",
+    "windows-modern-tts.ps1",
+  );
+
+  await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(dialogueJsonPath, JSON.stringify(lines, null, 2), "utf8");
 
-  const ps = [
-    "$ErrorActionPreference = 'Stop'",
-    "Add-Type -AssemblyName System.Speech",
-    "$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer",
-    "$synth.Rate = 0",
-    "$synth.Volume = 100",
-    "$parsedItems = Get-Content -Raw -LiteralPath '" +
-      escapePowerShellSingle(dialogueJsonPath) +
-      "' | ConvertFrom-Json",
-    "$items = @($parsedItems | ForEach-Object { $_ })",
-    "$voiceInfos = @($synth.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo })",
-    "$voiceNames = @($voiceInfos | ForEach-Object { $_.Name } | Where-Object { $_ })",
-    "$requestedVoice = $env:AI_OFFICE_VOX_VOICE",
-    "$requestedVoiceInfo = @($voiceInfos | Where-Object { $requestedVoice -and $_.Name -eq $requestedVoice })",
-    "$targetVoices = @($voiceInfos | Where-Object { $_.Culture.Name -eq 'id-ID' -or $_.Culture.Name -like 'id-*' })",
-    "$targetVoiceNames = @($targetVoices | ForEach-Object { $_.Name } | Where-Object { $_ })",
-    "if ($requestedVoice -and $requestedVoiceInfo.Count -eq 0) {",
-    "  $allVoiceInfo = ($voiceInfos | ForEach-Object { $_.Name + ' [' + $_.Culture.Name + ']' }) -join '; '",
-    "  throw ('Configured Vox voice was not found: ' + $requestedVoice + '. Installed voices: ' + $allVoiceInfo)",
-    "}",
-    "if ($targetVoiceNames.Count -eq 0) {",
-    "  $allVoiceInfo = ($voiceInfos | ForEach-Object { $_.Name + ' [' + $_.Culture.Name + ']' }) -join '; '",
-    "  throw ('No Indonesian Windows Speech voice is installed. Required culture: id-ID. Set up an Indonesian Windows speech voice first. Installed voices: ' + $allVoiceInfo)",
-    "}",
-    "$voiceMap = @{}",
-    "$voiceIndex = 0",
-    "$selectedVoiceNames = if ($requestedVoice) { @($requestedVoice) } else { $targetVoiceNames }",
-    "$lineCounter = 0",
-    "$outDir = '" + escapePowerShellSingle(audioDir) + "'",
-    "$null = New-Item -ItemType Directory -Force -Path $outDir",
-    "Write-Output ('TTS language=' + $language + '; items=' + $items.Count + '; installedVoices=' + $voiceNames.Count + '; targetVoices=' + $targetVoiceNames.Count + '; selectedVoice=' + ($selectedVoiceNames -join ', ') + '; outDir=' + $outDir)",
-    "foreach ($item in $items) {",
-    "  $speaker = [string]$item.speaker",
-    "  if (-not $voiceMap.ContainsKey($speaker)) {",
-    "    if ($voiceNames.Count -gt 0) {",
-    "      $voiceMap[$speaker] = $selectedVoiceNames[$voiceIndex % $selectedVoiceNames.Count]",
-    "      $voiceIndex++",
-    "    } else {",
-    "      $voiceMap[$speaker] = ''",
-    "    }",
-    "  }",
-    "  $voice = [string]$voiceMap[$speaker]",
-    "  if ($voice) { $synth.SelectVoice($voice) }",
-    "  $index = $lineCounter",
-    "  $lineCounter++",
-    "  $file = Join-Path $outDir (($index.ToString('000')) + '.wav')",
-    "  $line = [string]$item.line",
-    "  if ([string]::IsNullOrWhiteSpace($line)) { throw ('Dialogue line ' + $index + ' is empty.') }",
-    "  if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }",
-    "  $synth.SetOutputToWaveFile($file)",
-    "  $synth.Speak($line)",
-    "  $synth.SetOutputToNull()",
-    "  Start-Sleep -Milliseconds 100",
-    "  if (-not (Test-Path -LiteralPath $file)) { throw ('Speech synthesis produced no WAV for dialogue line ' + $index + '.') }",
-    "  $length = (Get-Item -LiteralPath $file).Length",
-    "  if ($length -le 44) { throw ('Speech synthesis produced an empty WAV for dialogue line ' + $index + ' (' + $length + ' bytes).') }",
-    "  Write-Output ('TTS wrote line ' + $index + ': ' + $length + ' bytes')",
-    "}",
-    "$synth.SetOutputToNull()",
-    "$synth.Dispose()",
-  ].join("\r\n");
+  try {
+    await fs.access(scriptPath);
+  } catch {
+    throw new Error(
+      "Windows modern TTS script is missing at " + scriptPath + ". Pull the latest main branch.",
+    );
+  }
 
-  await fs.writeFile(scriptPath, ps, "utf8");
   const ttsResult = await run("powershell.exe", [
     "-NoProfile",
     "-ExecutionPolicy",
     "Bypass",
     "-File",
     scriptPath,
+    "-DialogueJsonPath",
+    dialogueJsonPath,
+    "-OutputDir",
+    path.join(outputDir, "dialogue-lines"),
+    "-Language",
+    language,
   ]);
 
+  const audioDir = path.join(outputDir, "dialogue-lines");
   const expectedFiles = lines.map((line) =>
     path.join(audioDir, String(line.index).padStart(3, "0") + ".wav"),
   );
+
   const missingFiles: string[] = [];
   for (const file of expectedFiles) {
     try {
@@ -317,14 +271,24 @@ async function createDialogueAudio(options: {
   if (missingFiles.length > 0) {
     const diagnostic = String(ttsResult.stdout ?? "").trim().slice(-3000);
     throw new Error(
-      "Windows Speech Synthesis produced no valid WAV for dialogue line " +
-        lines.find((line) => missingFiles.some((file) => file.endsWith(String(line.index).padStart(3, "0") + ".wav")))?.index +
+      "Windows modern Speech Synthesis produced no valid WAV for dialogue line " +
+        lines.find((line) =>
+          missingFiles.some((file) =>
+            file.endsWith(String(line.index).padStart(3, "0") + ".wav"),
+          ),
+        )?.index +
         ". " +
-        (diagnostic ? "PowerShell: " + diagnostic : "Check installed Windows speech voices and System.Speech."),
+        (diagnostic
+          ? "PowerShell: " + diagnostic
+          : "Check that an id-ID Windows speech voice is installed."),
     );
   }
 
-  return { audioDir, dialogueJsonPath, scriptPath };
+  return {
+    audioDir,
+    dialogueJsonPath,
+    scriptPath,
+  };
 }
 
 export async function renderLocalVideo(input: {
