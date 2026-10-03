@@ -567,7 +567,6 @@ export default function Page() {
           script: activeProject.ai.script,
           director: activeProject.ai.director,
           model: activeProject.ai.model,
-          imageAssets: activeProject.ai.imageAssets ?? [],
           videoAssets: activeProject.ai.videoAssets ?? [],
         }),
       });
