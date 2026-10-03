@@ -1,8 +1,37 @@
 import { NextResponse } from "next/server";
+import { generateWithChatGPT } from "../../../../lib/chatgpt";
 import { generateWithOmniRoute } from "../../../../lib/omniroute";
 import { parseDirectorPlan } from "../../../../lib/drama-scene-plan";
 
 type Stage = "research" | "script" | "director";
+
+type TextBrainResult = {
+  text: string;
+  model: string;
+  displayName: string;
+  provider: "ChatGPT plan" | "OmniRoute";
+};
+
+async function generateWithPreferredBrain(prompt: string): Promise<TextBrainResult> {
+  const preferred = (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt");
+
+  if (preferred !== "omniroute") {
+    try {
+      const result = await generateWithChatGPT(prompt);
+      return { ...result, provider: "ChatGPT plan" };
+    } catch (chatgptError) {
+      console.warn(
+        "[AI Office] ChatGPT plan brain unavailable; falling back to OmniRoute:",
+        chatgptError,
+      );
+    }
+  }
+
+  const result = await generateWithOmniRoute(prompt);
+  return { ...result, provider: "OmniRoute" };
+}
+
+
 
 export async function POST(request: Request) {
   if (process.env.NODE_ENV !== "development") {
@@ -135,23 +164,25 @@ export async function POST(request: Request) {
       ].join("\n");
     }
 
-    let result: Awaited<ReturnType<typeof generateWithOmniRoute>>;
+    let result: TextBrainResult;
 
-    if (stage === "director") {
+    if (stage === "director" && (process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt") === "omniroute") {
       try {
-        result = await generateWithOmniRoute(prompt, undefined, {
+        const omniResult = await generateWithOmniRoute(prompt, undefined, {
           responseFormat: { type: "json_object" },
           noCache: true,
         });
+        result = { ...omniResult, provider: "OmniRoute" };
       } catch (structuredError) {
         console.warn(
           "[AI Office] Structured Director request was not accepted; falling back to normal JSON prompting:",
           structuredError,
         );
-        result = await generateWithOmniRoute(prompt);
+        const omniResult = await generateWithOmniRoute(prompt);
+        result = { ...omniResult, provider: "OmniRoute" };
       }
     } else {
-      result = await generateWithOmniRoute(prompt);
+      result = await generateWithPreferredBrain(prompt);
     }
 
     let dramaPlan = stage === "director"
@@ -187,10 +218,17 @@ export async function POST(request: Request) {
         ].join("\n");
 
         try {
-          const repairedResult = await generateWithOmniRoute(repairPrompt, undefined, {
-            responseFormat: { type: "json_object" },
-            noCache: true,
-          });
+          let repairedResult: TextBrainResult;
+          if ((process.env.AI_OFFICE_TEXT_PROVIDER?.trim().toLowerCase() || "chatgpt") === "omniroute") {
+            const omniRepair = await generateWithOmniRoute(repairPrompt, undefined, {
+              responseFormat: { type: "json_object" },
+              noCache: true,
+            });
+            repairedResult = { ...omniRepair, provider: "OmniRoute" };
+          } else {
+            repairedResult = await generateWithPreferredBrain(repairPrompt);
+          }
+
           const repairedPlan = parseDirectorPlan(repairedResult.text);
           if (repairedPlan.characterBible && repairedPlan.scenes.length === requestedSceneCount) {
             result = repairedResult;
@@ -243,7 +281,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       stage,
-      provider: "OmniRoute",
+      provider: result.provider,
       model: result.model,
       displayName: result.displayName,
       text: result.text,
