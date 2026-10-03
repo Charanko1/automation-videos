@@ -590,8 +590,8 @@ export async function renderLocalVideo(input: {
     const motion = cameraMotion(scene);
 
     const imageFilter =
-      "scale=1280:720:force_original_aspect_ratio=decrease," +
-      "pad=1280:720:(ow-iw)/2:(oh-ih)/2," +
+      "scale=1080:1920:force_original_aspect_ratio=decrease," +
+      "pad=1080:1920:(ow-iw)/2:(oh-ih)/2," +
       "zoompan=z='" +
       motion.zoom +
       "':x='" +
@@ -600,7 +600,7 @@ export async function renderLocalVideo(input: {
       motion.y +
       "':d=" +
       frames +
-      ":s=1280x720:fps=30,format=yuv420p";
+      ":s=1080x1920:fps=30,format=yuv420p";
 
     await run("ffmpeg", [
       "-y",
