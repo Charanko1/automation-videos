@@ -9,10 +9,10 @@ import { EMPTY_WORKSPACE, readWorkspace, writeWorkspace, type AIProduction, type
 const OfficeWorld = dynamic(() => import("../components/OfficeWorld"), { ssr: false });
 
 const people = [
-  { id: "rhea", name: "Rhea", role: "Kids Story Designer", provider: "OmniRoute · Free Provider Router", dept: "research", color: "#73a5ff" },
-  { id: "wri", name: "Wri", role: "Kids Storyboard Writer", provider: "OmniRoute · Free Provider Router", dept: "script", color: "#f0bc68" },
-  { id: "dira", name: "Dira", role: "Kids Prompt Director", provider: "OmniRoute · Free Provider Router", dept: "director", color: "#c58aff" },
-  { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "OmniRoute Image → Cloudflare fallback", dept: "image", color: "#68dcae" },
+  { id: "rhea", name: "Rhea", role: "Kids Story Designer", provider: "ChatGPT plan → OmniRoute fallback", dept: "research", color: "#73a5ff" },
+  { id: "wri", name: "Wri", role: "Kids Storyboard Writer", provider: "ChatGPT plan → OmniRoute fallback", dept: "script", color: "#f0bc68" },
+  { id: "dira", name: "Dira", role: "Kids Prompt Director", provider: "ChatGPT plan → OmniRoute fallback", dept: "director", color: "#c58aff" },
+  { id: "gemi", name: "Gemi", role: "3D Character & Scene Artist", provider: "ChatGPT Image → OmniRoute → Cloudflare", dept: "image", color: "#68dcae" },
   { id: "gpt", name: "GPT", role: "Video Artist", provider: "OmniRoute I2V · configurable model", dept: "video", color: "#72c7ff" },
   { id: "vox", name: "Vox", role: "Indonesian Dialogue Voice", provider: "Windows Speech Synthesis · id-ID", dept: "tts", color: "#ff8b94" },
 ];
@@ -768,7 +768,7 @@ export default function Page() {
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
               {activeProject.ai.imageAssets.map((asset) => (
                 <a key={asset.sceneId} href={asset.assetUrl} target="_blank" rel="noreferrer" style={{display:"block",textDecoration:"none"}}>
-                  <img src={asset.assetUrl} alt={asset.sceneId} style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",borderRadius:10,border:"1px solid rgba(255,255,255,.08)"}} />
+                  <img src={asset.assetUrl} alt={asset.sceneId} style={{width:"100%",aspectRatio:"9/16",objectFit:"cover",borderRadius:10,border:"1px solid rgba(255,255,255,.08)"}} />
                   <div className="muted" style={{fontSize:10,marginTop:4}}>{asset.sceneId}</div>
                 </a>
               ))}
