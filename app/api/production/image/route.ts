@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       "STRICTLY AVOID: dark, scary, horror, moody lighting, dramatic shadows, photorealistic photography, realistic human proportions, crowded scene, multiple rooms, crying, violence, adult themes, text, letters, subtitles, watermark, distorted hands, extra fingers, blurry, inconsistent character, static pose, standing still, frozen, stiff, camera zoom, camera pan, camera movement, tracking shot, dolly shot, slideshow, split screen, collage.",
     ].filter(Boolean).join("\n\n");
 
-    const imageProvider = process.env.AI_OFFICE_IMAGE_PROVIDER?.trim().toLowerCase() || "chatgpt";
+    const imageProvider = process.env.AI_OFFICE_IMAGE_PROVIDER?.trim().toLowerCase() || "auto";
     const omniImageModel = process.env.OMNIROUTE_IMAGE_MODEL?.trim();
     const negativePrompt = process.env.GEMI_IMAGE_NEGATIVE_PROMPT?.trim() || GEMI_NEGATIVE_PROFILE;
 
